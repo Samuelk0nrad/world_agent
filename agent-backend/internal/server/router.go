@@ -2,21 +2,34 @@ package server
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/gin-gonic/gin"
 	"worldagent/agent-backend/internal/agent"
 	"worldagent/agent-backend/internal/connectors"
 	"worldagent/agent-backend/internal/extensions"
 	"worldagent/agent-backend/internal/llm"
+	"worldagent/agent-backend/internal/observability"
 	"worldagent/agent-backend/internal/store"
+
+	"github.com/gin-gonic/gin"
 )
 
 func NewRouter(cfg Config) *gin.Engine {
-	router := gin.Default()
+	logger := observability.NewLogger(cfg.LogLevel, cfg.LogFormat)
+	auditSink := observability.AuditSink(observability.NopAuditSink{})
+	var auditStore observability.AuditEventStore
+	if cfg.LogEventsEnabled {
+		memorySink := observability.NewInMemoryAuditSink(cfg.LogEventBuffer)
+		auditSink = memorySink
+		auditStore = memorySink
+	}
+
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(observability.RequestMetadataMiddleware(logger))
 
 	memoryStore := store.NewFileStore(cfg.MemoryFile)
 	registry := extensions.NewDefaultRegistry()
@@ -32,7 +45,7 @@ func NewRouter(cfg Config) *gin.Engine {
 			webSearchConnector = serpAPIConnector
 		}
 		if err := connectorRegistry.Register(webSearchConnector); err != nil {
-			log.Printf("failed to register default web-search connector: %v", err)
+			logger.Error("failed to register default web-search connector", "error", err.Error())
 		}
 	}
 	if _, ok := connectorRegistry.Get(connectors.GmailConnectorID); !ok {
@@ -44,7 +57,7 @@ func NewRouter(cfg Config) *gin.Engine {
 			emailConnector = defaultGmailConnector
 		}
 		if err := connectorRegistry.Register(emailConnector); err != nil {
-			log.Printf("failed to register default gmail connector: %v", err)
+			logger.Error("failed to register default gmail connector", "error", err.Error())
 		}
 	}
 
@@ -66,7 +79,11 @@ func NewRouter(cfg Config) *gin.Engine {
 		}
 	}
 
-	runtimeOptions := []agent.RuntimeOption{agent.WithConnectorRegistry(connectorRegistry)}
+	runtimeOptions := []agent.RuntimeOption{
+		agent.WithConnectorRegistry(connectorRegistry),
+		agent.WithAuditSink(auditSink),
+		agent.WithLogPayloads(cfg.LogIncludePayload),
+	}
 	if llmConnectorID != "" && llmConnectorID != "none" {
 		runtimeOptions = append(runtimeOptions, agent.WithLLMConnectorID(llmConnectorID))
 	}
@@ -186,14 +203,72 @@ func NewRouter(cfg Config) *gin.Engine {
 			accessToken = strings.TrimSpace(c.GetHeader("X-Google-Access-Token"))
 		}
 
+		taskID := fmt.Sprintf("task-%d", time.Now().UnixNano())
+		observability.SetTaskID(c, taskID)
+		metadata := map[string]string{
+			"max_steps":        strconv.Itoa(payload.MaxSteps),
+			"has_google_token": strconv.FormatBool(accessToken != ""),
+		}
+		if cfg.LogIncludePayload {
+			metadata["message"] = payload.Message
+		} else {
+			metadata["message_chars"] = strconv.Itoa(len(strings.TrimSpace(payload.Message)))
+		}
+		_ = auditSink.Record(c.Request.Context(), observability.AuditEvent{
+			Type:     observability.EventAgentRunRequested,
+			Message:  "Agent run requested",
+			Metadata: metadata,
+		})
+
 		ctx := connectors.WithEmailAccessToken(c.Request.Context(), accessToken)
 		result, err := runtime.RunWithContext(ctx, payload.Message, payload.MaxSteps)
 		if err != nil {
+			_ = auditSink.Record(c.Request.Context(), observability.AuditEvent{
+				Type:    observability.EventToolFailed,
+				Tool:    "agent-run",
+				Message: "Agent run failed",
+				Error:   err.Error(),
+			})
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+		_ = auditSink.Record(c.Request.Context(), observability.AuditEvent{
+			Type:    observability.EventAgentRunCompleted,
+			Message: "Agent run completed",
+		})
 		c.JSON(http.StatusOK, gin.H{"result": result})
 	})
+
+	if cfg.LogAPIEnabled && auditStore != nil {
+		router.GET("/v1/logs/events", func(c *gin.Context) {
+			since := int64(0)
+			if raw := strings.TrimSpace(c.Query("since")); raw != "" {
+				parsed, err := strconv.ParseInt(raw, 10, 64)
+				if err != nil || parsed < 0 {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "since must be a non-negative integer"})
+					return
+				}
+				since = parsed
+			}
+
+			limit := 200
+			if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
+				parsed, err := strconv.Atoi(raw)
+				if err != nil || parsed <= 0 {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "limit must be a positive integer"})
+					return
+				}
+				limit = parsed
+			}
+
+			eventType := observability.EventType(strings.TrimSpace(c.Query("type")))
+			events := auditStore.EventsSince(since, limit, eventType)
+			c.JSON(http.StatusOK, gin.H{
+				"events":          events,
+				"latest_sequence": auditStore.LatestSequence(),
+			})
+		})
+	}
 
 	return router
 }

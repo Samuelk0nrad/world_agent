@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/spf13/viper"
 )
 
 const DefaultGeminiModel = "gemini-1.5-flash"
@@ -14,7 +16,18 @@ type GeminiConfig struct {
 }
 
 func LoadGeminiConfig() GeminiConfig {
-	return LoadGeminiConfigFromEnv(os.Getenv)
+	cfg, err := NewViperFromEnv()
+	if err != nil {
+		return LoadGeminiConfigFromEnv(os.Getenv)
+	}
+	return LoadGeminiConfigFromViper(cfg)
+}
+
+func LoadGeminiConfigFromViper(cfg *viper.Viper) GeminiConfig {
+	if cfg == nil {
+		return LoadGeminiConfigFromEnv(os.Getenv)
+	}
+	return LoadGeminiConfigFromEnv(cfg.GetString)
 }
 
 func LoadGeminiConfigFromEnv(getEnv func(string) string) GeminiConfig {

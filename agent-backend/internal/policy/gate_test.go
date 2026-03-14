@@ -1,6 +1,10 @@
 package policy
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/spf13/viper"
+)
 
 func TestDefaultGateDisablesSensitiveCapabilities(t *testing.T) {
 	t.Parallel()
@@ -18,11 +22,12 @@ func TestDefaultGateDisablesSensitiveCapabilities(t *testing.T) {
 }
 
 func TestLoadFromEnvOverridesDefaults(t *testing.T) {
-	t.Setenv("AGENT_CAPABILITY_EMAIL", "true")
-	t.Setenv("AGENT_CAPABILITY_SCREEN_CAPTURE", "true")
-	t.Setenv("AGENT_CAPABILITY_MOBILE_SENSORS", "true")
+	cfg := viper.New()
+	cfg.Set("AGENT_CAPABILITY_EMAIL", "true")
+	cfg.Set("AGENT_CAPABILITY_SCREEN_CAPTURE", "true")
+	cfg.Set("AGENT_CAPABILITY_MOBILE_SENSORS", "true")
 
-	gate := LoadFromEnv()
+	gate := LoadFromViper(cfg)
 	if !gate.IsAllowed(CapabilityEmail) {
 		t.Fatalf("expected email capability enabled from env")
 	}

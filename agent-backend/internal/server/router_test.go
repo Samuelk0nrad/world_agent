@@ -433,3 +433,88 @@ func TestAgentRunEmailPassesGoogleAccessTokenFromPayload(t *testing.T) {
 		t.Fatalf("expected token to be passed to connector, got %q", emailConnector.lastRequest.AccessToken)
 	}
 }
+
+func TestLogsEndpointReturnsEventsForUI(t *testing.T) {
+	t.Parallel()
+
+	connectorRegistry := connectors.NewRegistry()
+	if err := connectorRegistry.Register(fakeWebSearch{}); err != nil {
+		t.Fatalf("register connector: %v", err)
+	}
+
+	cfg := Config{
+		Port:              "0",
+		MemoryFile:        filepath.Join(t.TempDir(), "memory.jsonl"),
+		GeminiResponder:   staticResponder{response: "ok"},
+		ConnectorRegistry: connectorRegistry,
+		LogAPIEnabled:     true,
+		LogEventsEnabled:  true,
+	}
+	router := NewRouter(cfg)
+
+	raw := []byte(`{"message":"hello","maxSteps":2}`)
+	runReq := httptest.NewRequest(http.MethodPost, "/v1/agent/run", bytes.NewReader(raw))
+	runReq.Header.Set("Content-Type", "application/json")
+	runRec := httptest.NewRecorder()
+	router.ServeHTTP(runRec, runReq)
+	if runRec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", runRec.Code, runRec.Body.String())
+	}
+
+	logReq := httptest.NewRequest(http.MethodGet, "/v1/logs/events?since=0&limit=100", nil)
+	logRec := httptest.NewRecorder()
+	router.ServeHTTP(logRec, logReq)
+	if logRec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", logRec.Code, logRec.Body.String())
+	}
+
+	var response struct {
+		Events []struct {
+			Type string `json:"type"`
+		} `json:"events"`
+		LatestSequence int64 `json:"latest_sequence"`
+	}
+	if err := json.Unmarshal(logRec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("unmarshal logs response: %v", err)
+	}
+	if response.LatestSequence <= 0 {
+		t.Fatalf("expected latest_sequence > 0, got %d", response.LatestSequence)
+	}
+	if len(response.Events) == 0 {
+		t.Fatal("expected at least one log event")
+	}
+}
+
+func TestLogsEndpointIncludesPayloadWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	cfg := Config{
+		Port:              "0",
+		MemoryFile:        filepath.Join(t.TempDir(), "memory.jsonl"),
+		GeminiResponder:   staticResponder{response: "ok"},
+		LogAPIEnabled:     true,
+		LogEventsEnabled:  true,
+		LogIncludePayload: true,
+	}
+	router := NewRouter(cfg)
+
+	raw := []byte(`{"message":"hello payload","maxSteps":2}`)
+	runReq := httptest.NewRequest(http.MethodPost, "/v1/agent/run", bytes.NewReader(raw))
+	runReq.Header.Set("Content-Type", "application/json")
+	runRec := httptest.NewRecorder()
+	router.ServeHTTP(runRec, runReq)
+	if runRec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", runRec.Code, runRec.Body.String())
+	}
+
+	logReq := httptest.NewRequest(http.MethodGet, "/v1/logs/events?since=0&limit=100&type=agent_run_requested", nil)
+	logRec := httptest.NewRecorder()
+	router.ServeHTTP(logRec, logReq)
+	if logRec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", logRec.Code, logRec.Body.String())
+	}
+
+	if !strings.Contains(logRec.Body.String(), "hello payload") {
+		t.Fatalf("expected payload message in logs when enabled, got %s", logRec.Body.String())
+	}
+}

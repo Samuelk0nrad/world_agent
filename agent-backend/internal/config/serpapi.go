@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/spf13/viper"
 )
 
 const DefaultSerpAPIEngine = "google"
@@ -14,7 +16,18 @@ type SerpAPIConfig struct {
 }
 
 func LoadSerpAPIConfig() SerpAPIConfig {
-	return LoadSerpAPIConfigFromEnv(os.Getenv)
+	cfg, err := NewViperFromEnv()
+	if err != nil {
+		return LoadSerpAPIConfigFromEnv(os.Getenv)
+	}
+	return LoadSerpAPIConfigFromViper(cfg)
+}
+
+func LoadSerpAPIConfigFromViper(cfg *viper.Viper) SerpAPIConfig {
+	if cfg == nil {
+		return LoadSerpAPIConfigFromEnv(os.Getenv)
+	}
+	return LoadSerpAPIConfigFromEnv(cfg.GetString)
 }
 
 func LoadSerpAPIConfigFromEnv(getEnv func(string) string) SerpAPIConfig {

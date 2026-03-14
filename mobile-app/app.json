@@ -8,10 +8,14 @@
     "userInterfaceStyle": "automatic",
     "plugins": [
       "expo-router",
-      "expo-notifications"
+      "expo-notifications",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "android": {
+      "package": "com.anonymous.worldagent"
     }
   }
 }

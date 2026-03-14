@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Pressable, SafeAreaView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { checkBackendHealth } from "../src/api/client";
 import { useAppConfig } from "../src/state/app-config";
 
 export default function SettingsScreen() {
@@ -7,6 +8,8 @@ export default function SettingsScreen() {
   const [urlDraft, setUrlDraft] = useState(backendUrl);
   const [tokenDraft, setTokenDraft] = useState(googleAccessToken);
   const [status, setStatus] = useState("Ready");
+  const [healthStatus, setHealthStatus] = useState("Not checked yet.");
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
 
   const onSave = () => {
     const normalized = urlDraft.trim().replace(/\/+$/, "");
@@ -17,6 +20,26 @@ export default function SettingsScreen() {
     setBackendUrl(normalized);
     setGoogleAccessToken(tokenDraft.trim());
     setStatus("Saved. API settings are active now.");
+  };
+
+  const onCheckHealth = async () => {
+    const normalized = urlDraft.trim().replace(/\/+$/, "");
+    if (!normalized) {
+      setHealthStatus("Backend URL is required.");
+      return;
+    }
+
+    setIsCheckingHealth(true);
+    try {
+      const startedAt = Date.now();
+      await checkBackendHealth({ backendUrl: normalized });
+      const elapsedMs = Date.now() - startedAt;
+      setHealthStatus(`Connected successfully (${elapsedMs} ms).`);
+    } catch (error) {
+      setHealthStatus(error instanceof Error ? `Connection failed: ${error.message}` : "Connection failed.");
+    } finally {
+      setIsCheckingHealth(false);
+    }
   };
 
   return (
@@ -50,6 +73,16 @@ export default function SettingsScreen() {
         <Pressable style={styles.button} onPress={onSave}>
           <Text style={styles.buttonText}>Save settings</Text>
         </Pressable>
+
+        <Pressable
+          style={[styles.button, styles.secondaryButton, isCheckingHealth && styles.buttonDisabled]}
+          onPress={() => void onCheckHealth()}
+          disabled={isCheckingHealth}
+        >
+          <Text style={styles.buttonText}>{isCheckingHealth ? "Checking..." : "Check backend connection"}</Text>
+        </Pressable>
+
+        <Text style={styles.connectionStatus}>{healthStatus}</Text>
       </View>
 
       <View style={styles.item}>
@@ -114,6 +147,16 @@ const styles = StyleSheet.create({
   buttonText: {
     color: "#ffffff",
     fontWeight: "600",
+  },
+  secondaryButton: {
+    backgroundColor: "#0f766e",
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  connectionStatus: {
+    color: "#bfdbfe",
+    fontSize: 12,
   },
   item: {
     backgroundColor: "#111827",

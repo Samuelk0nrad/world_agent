@@ -2,8 +2,10 @@ package policy
 
 import (
 	"fmt"
-	"os"
 	"strconv"
+
+	"github.com/spf13/viper"
+	"worldagent/agent-backend/internal/config"
 )
 
 const (
@@ -43,12 +45,16 @@ func NewDefaultGate() Gate {
 }
 
 func LoadFromEnv() Gate {
+	return LoadFromViper(config.MustViper())
+}
+
+func LoadFromViper(cfg *viper.Viper) Gate {
 	gate := NewDefaultGate()
-	gate = gate.withEnvOverride("AGENT_CAPABILITY_WEB_SEARCH", CapabilityWebSearch)
-	gate = gate.withEnvOverride("AGENT_CAPABILITY_EMAIL", CapabilityEmail)
-	gate = gate.withEnvOverride("AGENT_CAPABILITY_MOBILE_SENSORS", CapabilityMobileSensors)
-	gate = gate.withEnvOverride("AGENT_CAPABILITY_SCREEN_CAPTURE", CapabilityScreenCapture)
-	gate = gate.withEnvOverride("AGENT_CAPABILITY_AUDIO_CAPTURE", CapabilityAudioCapture)
+	gate = gate.withViperOverride(cfg, "AGENT_CAPABILITY_WEB_SEARCH", CapabilityWebSearch)
+	gate = gate.withViperOverride(cfg, "AGENT_CAPABILITY_EMAIL", CapabilityEmail)
+	gate = gate.withViperOverride(cfg, "AGENT_CAPABILITY_MOBILE_SENSORS", CapabilityMobileSensors)
+	gate = gate.withViperOverride(cfg, "AGENT_CAPABILITY_SCREEN_CAPTURE", CapabilityScreenCapture)
+	gate = gate.withViperOverride(cfg, "AGENT_CAPABILITY_AUDIO_CAPTURE", CapabilityAudioCapture)
 	return gate
 }
 
@@ -88,11 +94,12 @@ func (g Gate) RequireExtension(extensionID string) error {
 	}
 }
 
-func (g Gate) withEnvOverride(envVar, capability string) Gate {
-	raw, ok := os.LookupEnv(envVar)
-	if !ok {
+func (g Gate) withViperOverride(cfg *viper.Viper, envVar, capability string) Gate {
+	if cfg == nil || !cfg.IsSet(envVar) {
 		return g
 	}
+
+	raw := cfg.GetString(envVar)
 	value, err := strconv.ParseBool(raw)
 	if err != nil {
 		return g

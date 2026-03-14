@@ -292,7 +292,7 @@ func TestRunRecordsToolAuditEvents(t *testing.T) {
 		t.Fatalf("register connector: %v", err)
 	}
 	responder := &fakeResponder{response: "Done"}
-	sink := observability.NewInMemoryAuditSink()
+	sink := observability.NewInMemoryAuditSink(200)
 	runtime := NewRuntimeWithAudit(memoryStore, registry, sink, WithConnectorRegistry(connectorRegistry), WithResponder(responder))
 
 	ctx := observability.WithMetadata(context.Background(), observability.Metadata{
@@ -307,7 +307,7 @@ func TestRunRecordsToolAuditEvents(t *testing.T) {
 		t.Fatalf("run failed: %v", err)
 	}
 
-	events := sink.Events()
+	events := sink.EventsSince(0, 200, "")
 	if len(events) < 4 {
 		t.Fatalf("expected at least 4 tool events, got %d", len(events))
 	}

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/spf13/viper"
 )
 
 type GoogleOAuthConfig struct {
@@ -13,7 +15,18 @@ type GoogleOAuthConfig struct {
 }
 
 func LoadGoogleOAuthConfig() GoogleOAuthConfig {
-	return LoadGoogleOAuthConfigFromEnv(os.Getenv)
+	cfg, err := NewViperFromEnv()
+	if err != nil {
+		return LoadGoogleOAuthConfigFromEnv(os.Getenv)
+	}
+	return LoadGoogleOAuthConfigFromViper(cfg)
+}
+
+func LoadGoogleOAuthConfigFromViper(cfg *viper.Viper) GoogleOAuthConfig {
+	if cfg == nil {
+		return LoadGoogleOAuthConfigFromEnv(os.Getenv)
+	}
+	return LoadGoogleOAuthConfigFromEnv(cfg.GetString)
 }
 
 func LoadGoogleOAuthConfigFromEnv(getEnv func(string) string) GoogleOAuthConfig {

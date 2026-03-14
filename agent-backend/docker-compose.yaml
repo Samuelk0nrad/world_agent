@@ -7,22 +7,10 @@ services:
     restart: unless-stopped
     ports:
       - "8088:8088"
-    environment:
-      AGENT_BACKEND_PORT: "8088"
-      AGENT_MEMORY_FILE: /app/data/memory.jsonl
-      AGENT_LLM_CONNECTOR: ${AGENT_LLM_CONNECTOR:-gemini}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-1.5-flash}
-      SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
-      SERPAPI_ENGINE: ${SERPAPI_ENGINE:-google}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      GOOGLE_REDIRECT_URL: ${GOOGLE_REDIRECT_URL:-}
-      AGENT_CAPABILITY_EMAIL: ${AGENT_CAPABILITY_EMAIL:-false}
-      AGENT_CAPABILITY_MOBILE_SENSORS: ${AGENT_CAPABILITY_MOBILE_SENSORS:-false}
-      AGENT_CAPABILITY_SCREEN_CAPTURE: ${AGENT_CAPABILITY_SCREEN_CAPTURE:-false}
-      AGENT_CAPABILITY_AUDIO_CAPTURE: ${AGENT_CAPABILITY_AUDIO_CAPTURE:-false}
+    env_file:
+      - .env
     volumes:
+      - ./.env:/app/.env:ro
       - backend-data:/app/data
 
 volumes:

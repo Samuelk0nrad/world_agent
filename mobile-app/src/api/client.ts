@@ -22,6 +22,10 @@ export type AgentResult = {
   steps: AgentStep[];
 };
 
+export type HealthzResponse = {
+  ok: boolean;
+};
+
 type ApiOptions = {
   backendUrl?: string;
   googleAccessToken?: string;
@@ -108,4 +112,17 @@ export async function runAgent(message: string, maxSteps = 4, options?: ApiOptio
   }
   const data = (await response.json()) as { result: AgentResult };
   return data.result;
+}
+
+export async function checkBackendHealth(options?: ApiOptions): Promise<HealthzResponse> {
+  const response = await fetch(`${resolveBaseUrl(options?.backendUrl)}/healthz`);
+  if (!response.ok) {
+    throw new Error(await parseErrorMessage(response));
+  }
+
+  const data = (await response.json()) as HealthzResponse;
+  if (!data || data.ok !== true) {
+    throw new Error("Backend health response is invalid.");
+  }
+  return data;
 }

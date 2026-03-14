@@ -23,6 +23,7 @@ type Runtime struct {
 	connectorRegistry *connectors.Registry
 	responder         llm.Responder
 	llmConnectorID    string
+	logPayloads       bool
 }
 
 type RuntimeOption func(*Runtime)
@@ -50,6 +51,12 @@ func WithResponder(responder llm.Responder) RuntimeOption {
 func WithLLMConnectorID(connectorID string) RuntimeOption {
 	return func(runtime *Runtime) {
 		runtime.llmConnectorID = strings.TrimSpace(strings.ToLower(connectorID))
+	}
+}
+
+func WithLogPayloads(enabled bool) RuntimeOption {
+	return func(runtime *Runtime) {
+		runtime.logPayloads = enabled
 	}
 }
 
@@ -160,10 +167,30 @@ func (r Runtime) RunWithContext(ctx context.Context, message string, maxSteps in
 }
 
 func (r Runtime) GenerateResponseWithGemini(ctx context.Context, prompt string) (string, error) {
+	requestMetadata := map[string]string{
+		"llm_connector": r.llmConnectorID,
+		"prompt_chars":  fmt.Sprintf("%d", len(prompt)),
+	}
+	if r.logPayloads {
+		requestMetadata["prompt"] = prompt
+	}
+	r.recordAudit(ctx, observability.AuditEvent{
+		Type:     observability.EventLLMRequested,
+		Tool:     "llm",
+		Message:  "LLM generation requested",
+		Metadata: requestMetadata,
+	})
+
 	responder := r.responder
 	if responder == nil && r.llmConnectorID != "" {
 		connector, err := connectors.GetTextGenerationConnector(r.connectorRegistry, r.llmConnectorID)
 		if err != nil {
+			r.recordAudit(ctx, observability.AuditEvent{
+				Type:    observability.EventLLMFailed,
+				Tool:    "llm",
+				Message: "LLM connector lookup failed",
+				Error:   err.Error(),
+			})
 			return "", fmt.Errorf("resolve %s connector: %w", r.llmConnectorID, err)
 		}
 		responder = connector
@@ -171,11 +198,30 @@ func (r Runtime) GenerateResponseWithGemini(ctx context.Context, prompt string) 
 
 	response, err := llm.GenerateAgentResponse(ctx, responder, prompt)
 	if err != nil {
+		r.recordAudit(ctx, observability.AuditEvent{
+			Type:    observability.EventLLMFailed,
+			Tool:    "llm",
+			Message: "LLM generation failed",
+			Error:   err.Error(),
+		})
 		if r.llmConnectorID != "" {
 			return "", fmt.Errorf("generate response with %s connector: %w", r.llmConnectorID, err)
 		}
 		return "", fmt.Errorf("generate Gemini response: %w", err)
 	}
+
+	successMetadata := map[string]string{
+		"response_chars": fmt.Sprintf("%d", len(response)),
+	}
+	if r.logPayloads {
+		successMetadata["response"] = response
+	}
+	r.recordAudit(ctx, observability.AuditEvent{
+		Type:     observability.EventLLMSucceeded,
+		Tool:     "llm",
+		Message:  "LLM generation succeeded",
+		Metadata: successMetadata,
+	})
 	return response, nil
 }
 

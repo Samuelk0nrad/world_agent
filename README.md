@@ -14,8 +14,9 @@
   - `GET /v1/extensions`
   - `PATCH /v1/extensions/:id`
   - `GET /v1/memory` (supports incremental sync with `?since=<sequence>`)
-  - `POST /v1/memory`
-  - `POST /v1/agent/run`
+- `POST /v1/memory`
+- `POST /v1/agent/run`
+  - `GET /v1/logs/events` (for UI log streaming/polling)
 
 ### Backend quick start
 
@@ -23,15 +24,13 @@ Gemini integration is available for final agent responses. Configure it before r
 
 ```sh
 cd agent-backend
-export AGENT_LLM_CONNECTOR=gemini
-export GEMINI_API_KEY=your_api_key_here
-# optional (defaults to gemini-1.5-flash)
-export GEMINI_MODEL=gemini-1.5-flash
+cp example.env .env
 go run ./cmd/server
 ```
 
 Default port: `8088` (override with `AGENT_BACKEND_PORT`).
 Memory file path: `./data/memory.jsonl` (override with `AGENT_MEMORY_FILE`).
+Backend env loading uses `github.com/spf13/viper` and always reads `./.env`.
 Memory entries include `id`, `source`, `content`, `created_at`, and `sequence` for sync-friendly pulls.
 LLM connector is disabled by default. Set `AGENT_LLM_CONNECTOR=gemini` to enable Gemini.
 If Gemini is requested but `GEMINI_API_KEY` is missing, `/v1/agent/run` returns an explicit configuration error.
@@ -55,20 +54,33 @@ Enable only the capabilities you need with:
 - `AGENT_CAPABILITY_SCREEN_CAPTURE=true`
 - `AGENT_CAPABILITY_AUDIO_CAPTURE=true`
 
+Comprehensive backend logging is configurable via env:
+- `AGENT_LOG_LEVEL=debug|info|warn|error`
+- `AGENT_LOG_FORMAT=json|text`
+- `AGENT_LOG_EVENTS_ENABLED=true|false`
+- `AGENT_LOG_API_ENABLED=true|false`
+- `AGENT_LOG_INCLUDE_PAYLOAD=true|false` (logs message/prompt/response payloads)
+- `AGENT_LOG_EVENT_BUFFER=<number>` (ring buffer size)
+
+For building a log UI, query:
+- `GET /v1/logs/events?since=<sequence>&limit=<n>&type=<event_type>`
+
 ### Backend Docker Compose
 
 ```sh
 cd agent-backend
+cp example.env .env
 docker compose up --build
 ```
 
 The backend is exposed on `http://localhost:8088`.
-Set your provider keys (`GEMINI_API_KEY`, `SERPAPI_API_KEY`, Google OAuth vars) in your shell or `.env` before starting Compose.
+Compose passes and mounts `./.env` into the container, so update `agent-backend/.env` before starting.
 
 ### Mobile quick start
 
 ```sh
 cd mobile-app
+cp example.env .env
 npm install
 npm run start
 ```
