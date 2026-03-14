@@ -5,3 +5,74 @@
 1. clone the repo: `git clone git@github.com:Samuelk0nrad/world_game.git WorldGame`
 2. go into the repo: `cd WorldGame`
 3. clone the subrepos: `git submodule init && git submodule update`
+
+## New agent scaffolding (workstream 1)
+
+- `mobile-app/`: React Native (Expo) chat-first shell with tabs: Assistant, Extensions, Settings
+- `agent-backend/`: Golang (Gin) backend skeleton with:
+  - `GET /healthz`
+  - `GET /v1/extensions`
+  - `PATCH /v1/extensions/:id`
+  - `GET /v1/memory` (supports incremental sync with `?since=<sequence>`)
+  - `POST /v1/memory`
+  - `POST /v1/agent/run`
+
+### Backend quick start
+
+Gemini integration is available for final agent responses. Configure it before running:
+
+```sh
+cd agent-backend
+export AGENT_LLM_CONNECTOR=gemini
+export GEMINI_API_KEY=your_api_key_here
+# optional (defaults to gemini-1.5-flash)
+export GEMINI_MODEL=gemini-1.5-flash
+go run ./cmd/server
+```
+
+Default port: `8088` (override with `AGENT_BACKEND_PORT`).
+Memory file path: `./data/memory.jsonl` (override with `AGENT_MEMORY_FILE`).
+Memory entries include `id`, `source`, `content`, `created_at`, and `sequence` for sync-friendly pulls.
+LLM connector is disabled by default. Set `AGENT_LLM_CONNECTOR=gemini` to enable Gemini.
+If Gemini is requested but `GEMINI_API_KEY` is missing, `/v1/agent/run` returns an explicit configuration error.
+Gemini upstream/transport failures are also surfaced as explicit `/v1/agent/run` connector errors.
+Web search uses a SerpAPI connector. Configure it with:
+- `SERPAPI_API_KEY` (required)
+- `SERPAPI_ENGINE` (optional, defaults to `google`)
+If web search is invoked without `SERPAPI_API_KEY`, `/v1/agent/run` returns an explicit connector configuration error.
+Gmail connector primitives are wired for email extension read/send flows. Configure OAuth app values:
+- `GOOGLE_CLIENT_ID` (required)
+- `GOOGLE_CLIENT_SECRET` (required)
+- `GOOGLE_REDIRECT_URL` (required)
+Pass a user Gmail access token per `/v1/agent/run` request via:
+- JSON field `googleAccessToken`
+- or header `X-Google-Access-Token`
+If OAuth config or token is missing, `/v1/agent/run` returns an explicit Gmail connector error.
+Capability gates default to safe mode (`email`, `mobile-sensors`, `screen-capture`, `audio-capture` disabled).
+Enable only the capabilities you need with:
+- `AGENT_CAPABILITY_EMAIL=true`
+- `AGENT_CAPABILITY_MOBILE_SENSORS=true`
+- `AGENT_CAPABILITY_SCREEN_CAPTURE=true`
+- `AGENT_CAPABILITY_AUDIO_CAPTURE=true`
+
+### Backend Docker Compose
+
+```sh
+cd agent-backend
+docker compose up --build
+```
+
+The backend is exposed on `http://localhost:8088`.
+Set your provider keys (`GEMINI_API_KEY`, `SERPAPI_API_KEY`, Google OAuth vars) in your shell or `.env` before starting Compose.
+
+### Mobile quick start
+
+```sh
+cd mobile-app
+npm install
+npm run start
+```
+
+The mobile app defaults to `http://localhost:8088`, but you can set API values directly in the **Settings** tab:
+- Backend URL
+- Optional Google access token (used for Gmail connector tests)
