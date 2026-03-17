@@ -18,7 +18,9 @@ func (m *Model) Name() string {
 }
 
 func (m *Model) Generate(ctx context.Context, req ai.AIRequest) (*ai.AIResponse, error) {
-	client, err := genai.NewClient(ctx, nil)
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey: m.client.apiKey,
+	})
 	if err != nil {
 		return nil, err
 	}

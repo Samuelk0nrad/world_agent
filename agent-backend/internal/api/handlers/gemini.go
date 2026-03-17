@@ -32,7 +32,8 @@ func (h *GeminiHandler) GetResponse(c *gin.Context) {
 	res, err := h.GeminiModel.Generate(context.Background(), req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err,
+			"error":         err.Error(),
+			"error_massage": "some internal error occured",
 		})
 		return
 	}
