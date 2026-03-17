@@ -25,7 +25,7 @@ func NewGeminiHandler(env *config.Env) *GeminiHandler {
 func (h *GeminiHandler) GetResponse(c *gin.Context) {
 	req := ai.AIRequest{
 		Promt:       "Hello give some random response back to the user",
-		SystemPromt: "You are some wiard frient that want to make the live hard",
+		SystemPromt: "You are some weird friend that want to make the live hard",
 		MaxTokens:   100,
 	}
 
