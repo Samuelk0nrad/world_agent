@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"worldagent/agent-backend/internal/agentloop"
-	"worldagent/agent-backend/internal/ai"
 	"worldagent/agent-backend/internal/connectors"
 	"worldagent/agent-backend/internal/extensions"
 	"worldagent/agent-backend/internal/llm"
 	"worldagent/agent-backend/internal/observability"
 	"worldagent/agent-backend/internal/store"
+	"worldagent/agent-backend/pkg/agentloop"
+	"worldagent/agent-backend/pkg/ai"
 )
 
 type extensionRegistry interface {

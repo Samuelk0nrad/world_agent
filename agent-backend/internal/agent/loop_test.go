@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"worldagent/agent-backend/internal/agentloop"
+	"worldagent/agent-backend/pkg/agentloop"
 	"worldagent/agent-backend/internal/connectors"
 	"worldagent/agent-backend/internal/extensions"
 	"worldagent/agent-backend/internal/observability"

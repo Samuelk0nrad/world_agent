@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"worldagent/agent-backend/internal/ai"
+	"worldagent/agent-backend/pkg/ai"
 )
 
 type scriptedAssistantModule struct {

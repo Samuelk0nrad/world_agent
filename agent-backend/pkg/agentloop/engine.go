@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"worldagent/agent-backend/internal/ai"
+	"worldagent/agent-backend/pkg/ai"
 )
 
 var ErrToolExecutionBlocked = errors.New("tool execution blocked")
