@@ -61,10 +61,20 @@ func TestLoadConfigDefaultsWithoutLLMConnector(t *testing.T) {
 	if !cfg.LogEventsEnabled || !cfg.LogAPIEnabled {
 		t.Fatalf("expected logging enabled defaults, got events=%v api=%v", cfg.LogEventsEnabled, cfg.LogAPIEnabled)
 	}
-	if cfg.LogIncludePayload {
-		t.Fatalf("expected payload logging disabled by default")
+	if !cfg.LogIncludePayload {
+		t.Fatalf("expected payload logging enabled by default")
 	}
 	if cfg.LogEventBuffer != 2000 {
 		t.Fatalf("expected default log event buffer 2000, got %d", cfg.LogEventBuffer)
+	}
+}
+
+func TestLoadConfigAllowsDisablingPayloadLogging(t *testing.T) {
+	cfgSource := viper.New()
+	cfgSource.Set("AGENT_LOG_INCLUDE_PAYLOAD", false)
+
+	cfg := LoadConfigFromViper(cfgSource)
+	if cfg.LogIncludePayload {
+		t.Fatalf("expected payload logging to be disabled when explicitly configured")
 	}
 }

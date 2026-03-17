@@ -62,6 +62,9 @@ func LoadConfigFromViper(env *viper.Viper) Config {
 		logAPIEnabled = true
 	}
 	logIncludePayload := env.GetBool("AGENT_LOG_INCLUDE_PAYLOAD")
+	if !env.IsSet("AGENT_LOG_INCLUDE_PAYLOAD") {
+		logIncludePayload = true
+	}
 	logEventBuffer := env.GetInt("AGENT_LOG_EVENT_BUFFER")
 	if logEventBuffer <= 0 {
 		logEventBuffer = 2000

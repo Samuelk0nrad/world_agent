@@ -31,6 +31,8 @@ type AuditEvent struct {
 	Message   string            `json:"message,omitempty"`
 	Error     string            `json:"error,omitempty"`
 	Metadata  map[string]string `json:"metadata,omitempty"`
+	Input     any               `json:"input,omitempty"`
+	Output    any               `json:"output,omitempty"`
 }
 
 type AuditSink interface {

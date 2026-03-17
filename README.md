@@ -20,7 +20,12 @@
 
 ### Backend quick start
 
-Gemini integration is available for final agent responses. Configure it before running:
+Backend internals are now split for extension without breaking API clients:
+- `internal/ai`: provider/model contracts + registry (Gemini is the default provider today).
+- `internal/agentloop`: evented turn runner (message/tool lifecycle, hooks, deterministic event sequencing).
+- `internal/agent`: runtime orchestration that maps loop/AI behavior back to the stable HTTP response contract.
+
+Gemini integration is available by default for final agent responses. Configure it before running:
 
 ```sh
 cd agent-backend
@@ -32,7 +37,8 @@ Default port: `8088` (override with `AGENT_BACKEND_PORT`).
 Memory file path: `./data/memory.jsonl` (override with `AGENT_MEMORY_FILE`).
 Backend env loading uses `github.com/spf13/viper` and always reads `./.env`.
 Memory entries include `id`, `source`, `content`, `created_at`, and `sequence` for sync-friendly pulls.
-LLM connector is disabled by default. Set `AGENT_LLM_CONNECTOR=gemini` to enable Gemini.
+LLM connector is disabled by default. Set `AGENT_LLM_CONNECTOR=gemini` to enable Gemini first.
+As additional providers/connectors are registered, `AGENT_LLM_CONNECTOR` remains the extension point for selecting them.
 If Gemini is requested but `GEMINI_API_KEY` is missing, `/v1/agent/run` returns an explicit configuration error.
 Gemini upstream/transport failures are also surfaced as explicit `/v1/agent/run` connector errors.
 Web search uses a SerpAPI connector. Configure it with:
@@ -62,6 +68,9 @@ Comprehensive backend logging is configurable via env:
 - `AGENT_LOG_INCLUDE_PAYLOAD=true|false` (logs message/prompt/response payloads)
 - `AGENT_LOG_EVENT_BUFFER=<number>` (ring buffer size)
 
+`POST /v1/agent/run` keeps the existing contract (`result.reply`, `result.steps`) while internals evolve.
+New tools/modules/providers should be added behind this contract boundary.
+
 For building a log UI, query:
 - `GET /v1/logs/events?since=<sequence>&limit=<n>&type=<event_type>`
 
@@ -88,3 +97,14 @@ npm run start
 The mobile app defaults to `http://localhost:8088`, but you can set API values directly in the **Settings** tab:
 - Backend URL
 - Optional Google access token (used for Gmail connector tests)
+
+### Monitoring web quick start
+
+```sh
+cd monitoring-web
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`, set **Backend URL** in the UI (default `http://localhost:8088`), then click **Start** or **Poll now**.
+The monitor polls backend logs from `GET /v1/logs/events?since=<n>&limit=<n>` (through the app route `GET /api/logs/events`).

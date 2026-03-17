@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,11 @@ import (
 	"worldagent/agent-backend/internal/store"
 
 	"github.com/gin-gonic/gin"
+)
+
+const (
+	logEventsDefaultLimit = 200
+	logEventsMaxLimit     = 2000
 )
 
 func NewRouter(cfg Config) *gin.Engine {
@@ -188,6 +194,8 @@ func NewRouter(cfg Config) *gin.Engine {
 	})
 
 	router.POST("/v1/agent/run", func(c *gin.Context) {
+		// Preserve the existing API request/response shape while the runtime now
+		// executes via the evented loop core under the hood.
 		var payload struct {
 			Message           string `json:"message"`
 			MaxSteps          int    `json:"maxSteps"`
@@ -241,28 +249,26 @@ func NewRouter(cfg Config) *gin.Engine {
 
 	if cfg.LogAPIEnabled && auditStore != nil {
 		router.GET("/v1/logs/events", func(c *gin.Context) {
-			since := int64(0)
-			if raw := strings.TrimSpace(c.Query("since")); raw != "" {
-				parsed, err := strconv.ParseInt(raw, 10, 64)
-				if err != nil || parsed < 0 {
-					c.JSON(http.StatusBadRequest, gin.H{"error": "since must be a non-negative integer"})
-					return
-				}
-				since = parsed
+			since, err := parseLogEventsSince(c.Query("since"))
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
 			}
 
-			limit := 200
-			if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
-				parsed, err := strconv.Atoi(raw)
-				if err != nil || parsed <= 0 {
-					c.JSON(http.StatusBadRequest, gin.H{"error": "limit must be a positive integer"})
-					return
-				}
-				limit = parsed
+			limit, err := parseLogEventsLimit(c.Query("limit"))
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
 			}
 
-			eventType := observability.EventType(strings.TrimSpace(c.Query("type")))
+			eventType := observability.EventType(strings.ToLower(strings.TrimSpace(c.Query("type"))))
 			events := auditStore.EventsSince(since, limit, eventType)
+			sort.Slice(events, func(i, j int) bool {
+				return events[i].Sequence < events[j].Sequence
+			})
+			if events == nil {
+				events = make([]observability.AuditEvent, 0)
+			}
 			c.JSON(http.StatusOK, gin.H{
 				"events":          events,
 				"latest_sequence": auditStore.LatestSequence(),
@@ -271,4 +277,33 @@ func NewRouter(cfg Config) *gin.Engine {
 	}
 
 	return router
+}
+
+func parseLogEventsSince(raw string) (int64, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return 0, nil
+	}
+
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || parsed < 0 {
+		return 0, fmt.Errorf("since must be a non-negative integer")
+	}
+	return parsed, nil
+}
+
+func parseLogEventsLimit(raw string) (int, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return logEventsDefaultLimit, nil
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
+		return 0, fmt.Errorf("limit must be a positive integer")
+	}
+	if parsed > logEventsMaxLimit {
+		return logEventsMaxLimit, nil
+	}
+	return parsed, nil
 }
