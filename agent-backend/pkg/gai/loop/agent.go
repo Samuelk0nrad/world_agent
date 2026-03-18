@@ -24,21 +24,29 @@ func NewAgent(model ai.Model, tools []Tool, systemPrompt string) *Agent {
 }
 
 func (a *Agent) FollowUp(ctx context.Context, prompt string) (*Message, error) {
-	userMessage := Message{Text: prompt, Role: "user"}
+	if a == nil {
+		return nil, ErrNilAgent
+	}
+	if a.Model == nil {
+		return nil, ErrModelNotConfigured
+	}
+	if strings.TrimSpace(prompt) == "" {
+		return nil, ErrEmptyPrompt
+	}
+
+	userMessage := Message{Text: prompt, Role: RoleUser}
 	a.addMessage(userMessage)
 
-	historyPrompt := a.SystemPrompt + "\nThis is the conversation history:\n" + a.getAllMessages()
-	request := ai.AIRequest{SystemPrompt: historyPrompt}
-
+	request := ai.AIRequest{SystemPrompt: buildSystemPrompt(a.SystemPrompt, a.Messages)}
 	res, err := a.Model.Generate(ctx, request)
 	if err != nil {
 		return nil, err
 	}
 
-	agentMessage := Message{Text: res.Text, Role: "agent"}
-	a.addMessage(agentMessage)
+	assistantMessage := Message{Text: res.Text, Role: RoleAssistant}
+	a.addMessage(assistantMessage)
 
-	return &agentMessage, nil
+	return &assistantMessage, nil
 }
 
 func (a *Agent) addMessage(newMessage Message) {
@@ -46,16 +54,39 @@ func (a *Agent) addMessage(newMessage Message) {
 }
 
 func (a *Agent) getAllMessages() string {
+	return renderMessages(a.Messages)
+}
+
+func buildSystemPrompt(systemPrompt string, messages []Message) string {
 	var builder strings.Builder
 
-	for i, m := range a.Messages {
+	trimmed := strings.TrimSpace(systemPrompt)
+	if trimmed != "" {
+		builder.WriteString(trimmed)
+		builder.WriteString("\n")
+	}
+
+	builder.WriteString("<conversation>")
+	builder.WriteString(renderMessages(messages))
+	builder.WriteString("</conversation>")
+
+	return builder.String()
+}
+
+func renderMessages(messages []Message) string {
+	var builder strings.Builder
+
+	for i, m := range messages {
+		builder.WriteString("<")
+		builder.WriteString(string(m.Role))
+		builder.WriteString(" key=")
 		builder.WriteString(strconv.Itoa(i))
-		builder.WriteString(" (")
-		builder.WriteString(m.Role)
-		builder.WriteString("):\n")
-		builder.WriteString("\t")
+		builder.WriteString(">\n")
 		builder.WriteString(m.Text)
 		builder.WriteString("\n")
+		builder.WriteString("</")
+		builder.WriteString(string(m.Role))
+		builder.WriteString(">")
 	}
 
 	return builder.String()

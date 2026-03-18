@@ -2,6 +2,7 @@ package loop_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -33,28 +34,50 @@ func TestFollowUpAppendsMessagesAndBuildsPrompt(t *testing.T) {
 	if msg == nil {
 		t.Fatalf("expected message, got nil")
 	}
-	if msg.Role != "agent" || msg.Text != "ok" {
+	if msg.Role != loop.RoleAssistant || msg.Text != "ok" {
 		t.Fatalf("unexpected message: %+v", *msg)
 	}
 
 	if len(agent.Messages) != 2 {
 		t.Fatalf("expected 2 messages, got %d", len(agent.Messages))
 	}
-	if agent.Messages[0].Role != "user" || agent.Messages[0].Text != "hello" {
+	if agent.Messages[0].Role != loop.RoleUser || agent.Messages[0].Text != "hello" {
 		t.Fatalf("unexpected first message: %+v", agent.Messages[0])
 	}
-	if agent.Messages[1].Role != "agent" || agent.Messages[1].Text != "ok" {
+	if agent.Messages[1].Role != loop.RoleAssistant || agent.Messages[1].Text != "ok" {
 		t.Fatalf("unexpected second message: %+v", agent.Messages[1])
 	}
 
-	combined := model.lastReq.CombinedPrompt()
-	if !strings.Contains(combined, "system prompt") {
-		t.Fatalf("combined prompt missing system prompt: %q", combined)
+	if !strings.Contains(model.lastReq.SystemPrompt, "system prompt") {
+		t.Fatalf("system prompt missing from request: %q", model.lastReq.SystemPrompt)
 	}
-	if !strings.Contains(combined, "0 (user):") {
-		t.Fatalf("combined prompt missing message index and role: %q", combined)
+	if strings.Count(model.lastReq.SystemPrompt, "hello") != 1 {
+		t.Fatalf("expected user prompt once in model request, got %q", model.lastReq.SystemPrompt)
 	}
-	if strings.Count(combined, "hello") != 1 {
-		t.Fatalf("expected user prompt once in combined prompt, got %q", combined)
-	}
+}
+
+func TestFollowUpValidation(t *testing.T) {
+	t.Run("nil agent", func(t *testing.T) {
+		var agent *loop.Agent
+		_, err := agent.FollowUp(context.Background(), "hello")
+		if !errors.Is(err, loop.ErrNilAgent) {
+			t.Fatalf("expected ErrNilAgent, got %v", err)
+		}
+	})
+
+	t.Run("missing model", func(t *testing.T) {
+		agent := loop.NewAgent(nil, nil, "system")
+		_, err := agent.FollowUp(context.Background(), "hello")
+		if !errors.Is(err, loop.ErrModelNotConfigured) {
+			t.Fatalf("expected ErrModelNotConfigured, got %v", err)
+		}
+	})
+
+	t.Run("empty prompt", func(t *testing.T) {
+		agent := loop.NewAgent(&fakeModel{}, nil, "system")
+		_, err := agent.FollowUp(context.Background(), "   ")
+		if !errors.Is(err, loop.ErrEmptyPrompt) {
+			t.Fatalf("expected ErrEmptyPrompt, got %v", err)
+		}
+	})
 }
