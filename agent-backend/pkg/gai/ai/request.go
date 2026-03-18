@@ -8,7 +8,7 @@ type AIRequest struct {
 
 func (r AIRequest) CombinedPrompt() string {
 	systemPrompt := r.SystemPrompt
-	prompt := r.SystemPrompt
+	prompt := r.Prompt
 
 	if systemPrompt == "" {
 		return prompt
