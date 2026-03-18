@@ -16,11 +16,15 @@ type Agent struct {
 }
 
 func NewAgent(model ai.Model, tools []Tool, systemPrompt string) *Agent {
-	return &Agent{
+	agent := &Agent{
 		Model:        model,
 		Tools:        tools,
 		SystemPrompt: systemPrompt,
 	}
+
+	agent.addMessage(Message{systemPrompt, RoleSystem})
+
+	return agent
 }
 
 func (a *Agent) FollowUp(ctx context.Context, prompt string) (*Message, error) {
@@ -37,7 +41,7 @@ func (a *Agent) FollowUp(ctx context.Context, prompt string) (*Message, error) {
 	userMessage := Message{Text: prompt, Role: RoleUser}
 	a.addMessage(userMessage)
 
-	request := ai.AIRequest{SystemPrompt: buildSystemPrompt(a.SystemPrompt, a.Messages)}
+	request := ai.AIRequest{SystemPrompt: buildSystemPrompt(a.Messages)}
 	res, err := a.Model.Generate(ctx, request)
 	if err != nil {
 		return nil, err
@@ -53,18 +57,8 @@ func (a *Agent) addMessage(newMessage Message) {
 	a.Messages = append(a.Messages, newMessage)
 }
 
-func (a *Agent) getAllMessages() string {
-	return renderMessages(a.Messages)
-}
-
-func buildSystemPrompt(systemPrompt string, messages []Message) string {
+func buildSystemPrompt(messages []Message) string {
 	var builder strings.Builder
-
-	trimmed := strings.TrimSpace(systemPrompt)
-	if trimmed != "" {
-		builder.WriteString(trimmed)
-		builder.WriteString("\n")
-	}
 
 	builder.WriteString("<conversation>")
 	builder.WriteString(renderMessages(messages))
