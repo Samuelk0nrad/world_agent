@@ -1,6 +1,10 @@
 package gemini
 
-import "agent-backend/pkg/gai/ai"
+import (
+	"strings"
+
+	"agent-backend/pkg/gai/ai"
+)
 
 type Provider struct {
 	apiKey string
@@ -14,9 +18,17 @@ func (p *Provider) Name() string {
 	return "gemini"
 }
 
-func (p *Provider) Model(name string) ai.Model {
+func (p *Provider) Model(name string) (ai.Model, error) {
+	if strings.TrimSpace(name) == "" {
+		return nil, ai.ErrModelNotFound
+	}
+
 	return &Model{
 		name:   name,
 		client: p,
-	}
+	}, nil
+}
+
+func (p *Provider) ListModels() ([]string, error) {
+	return []string{"gemini-3-flash-preview"}, nil
 }

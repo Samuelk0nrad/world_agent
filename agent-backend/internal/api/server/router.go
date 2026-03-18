@@ -18,7 +18,7 @@ func NewRouter(env *config.Env) *gin.Engine {
 	{
 		api.GET("/health", healthHandler.GetHealth)
 		api.GET("/ai", geminiHandler.GetResponse)
-		api.POST("/agent", agentHandler.PostAgentAgent)
+		api.POST("/agent", agentHandler.PostAgent)
 	}
 
 	return router

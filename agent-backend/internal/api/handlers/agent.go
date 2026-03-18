@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"net/http"
 
 	"agent-backend/internal/config"
@@ -12,36 +11,45 @@ import (
 )
 
 type AgentHandler struct {
-	Agent loop.Agent
+	agent   *loop.Agent
+	initErr error
 }
 
 func NewAgentHandler(env *config.Env) *AgentHandler {
-	model := gemini.New(env.GeminiAPIKey).Model("gemini-3-flash-preview")
+	model, err := gemini.New(env.GeminiAPIKey).Model("gemini-3-flash-preview")
+	if err != nil {
+		return &AgentHandler{initErr: err}
+	}
+
 	var tools []loop.Tool
 	agent := loop.NewAgent(model, tools, "you are a the World Agent")
-	return &AgentHandler{
-		*agent,
-	}
+
+	return &AgentHandler{agent: agent}
 }
 
 type Request struct {
 	Prompt string `json:"prompt"`
 }
 
-func (h *AgentHandler) PostAgentAgent(c *gin.Context) {
-	var req Request
-	if err := c.BindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"err": err.Error(),
-		})
+func (h *AgentHandler) PostAgent(c *gin.Context) {
+	if h.initErr != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"err": h.initErr.Error()})
+		return
+	}
+	if h.agent == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"err": "agent is not initialized"})
 		return
 	}
 
-	message, err := h.Agent.FollowUp(context.Background(), req.Prompt)
+	var req Request
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"err": err.Error()})
+		return
+	}
+
+	message, err := h.agent.FollowUp(c.Request.Context(), req.Prompt)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"err": err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"err": err.Error()})
 		return
 	}
 

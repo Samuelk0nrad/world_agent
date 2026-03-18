@@ -2,68 +2,61 @@ package loop
 
 import (
 	"context"
-	"fmt"
 	"strconv"
+	"strings"
 
 	"agent-backend/pkg/gai/ai"
 )
 
 type Agent struct {
-	Model       ai.Model
-	Tools       []Tool
-	Messages    []Message
-	SystemPromt string
+	Model        ai.Model
+	Tools        []Tool
+	Messages     []Message
+	SystemPrompt string
 }
 
 func NewAgent(model ai.Model, tools []Tool, systemPrompt string) *Agent {
 	return &Agent{
-		Model:       model,
-		Tools:       tools,
-		SystemPromt: systemPrompt,
+		Model:        model,
+		Tools:        tools,
+		SystemPrompt: systemPrompt,
 	}
 }
 
-func (a *Agent) FollowUp(ctx context.Context, promt string) (*Message, error) {
-	var userMessage Message
-	userMessage.Text = promt
-	userMessage.Role = "user"
-
+func (a *Agent) FollowUp(ctx context.Context, prompt string) (*Message, error) {
+	userMessage := Message{Text: prompt, Role: "user"}
 	a.addMessage(userMessage)
 
-	systemPromt := a.SystemPromt
-	systemPromt += "\nThis is the conversation history: \n"
-	systemPromt += a.getAllMessages()
+	historyPrompt := a.SystemPrompt + "\nThis is the conversation history:\n" + a.getAllMessages()
+	request := ai.AIRequest{SystemPrompt: historyPrompt}
 
-	var request ai.AIRequest
-	request.Promt = systemPromt + "\n"
-	request.Promt += promt
-
-	var message Message
 	res, err := a.Model.Generate(ctx, request)
 	if err != nil {
 		return nil, err
 	}
 
-	message.Text = res.Text
-	message.Role = "agent"
+	agentMessage := Message{Text: res.Text, Role: "agent"}
+	a.addMessage(agentMessage)
 
-	a.addMessage(message)
-
-	return &message, err
+	return &agentMessage, nil
 }
 
 func (a *Agent) addMessage(newMessage Message) {
-	fmt.Println("New Message from: ", newMessage.Role, " with content: ", newMessage.Text)
-
 	a.Messages = append(a.Messages, newMessage)
 }
 
 func (a *Agent) getAllMessages() string {
-	var s string
+	var builder strings.Builder
+
 	for i, m := range a.Messages {
-		cm := strconv.Itoa(i) + " (" + m.Role + "):\n"
-		cm += "	" + m.Text + "\n"
-		s += cm
+		builder.WriteString(strconv.Itoa(i))
+		builder.WriteString(" (")
+		builder.WriteString(m.Role)
+		builder.WriteString("):\n")
+		builder.WriteString("\t")
+		builder.WriteString(m.Text)
+		builder.WriteString("\n")
 	}
-	return s
+
+	return builder.String()
 }

@@ -28,7 +28,7 @@ func (m *Model) Generate(ctx context.Context, req ai.AIRequest) (*ai.AIResponse,
 	result, err := client.Models.GenerateContent(
 		ctx,
 		m.name,
-		genai.Text(req.Promt),
+		genai.Text(req.CombinedPrompt()),
 		nil,
 	)
 	if err != nil {
