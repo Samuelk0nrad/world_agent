@@ -12,11 +12,13 @@ func NewRouter(env *config.Env) *gin.Engine {
 
 	healthHandler := handlers.NewHealthHandlers()
 	geminiHandler := handlers.NewGeminiHandler(env)
+	agentHandler := handlers.NewAgentHandler(env)
 
 	api := router.Group("/api")
 	{
 		api.GET("/health", healthHandler.GetHealth)
 		api.GET("/ai", geminiHandler.GetResponse)
+		api.POST("/agent", agentHandler.PostAgentAgent)
 	}
 
 	return router
