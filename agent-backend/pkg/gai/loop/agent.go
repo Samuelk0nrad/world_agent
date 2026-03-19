@@ -27,30 +27,65 @@ func NewAgent(model ai.Model, tools []Tool, systemPrompt string) *Agent {
 	return agent
 }
 
-func (a *Agent) FollowUp(ctx context.Context, prompt string) (*Message, error) {
+func (a *Agent) FollowUp(ctx context.Context, prompt string) (string, error) {
 	if a == nil {
-		return nil, ErrNilAgent
+		return "", ErrNilAgent
 	}
 	if a.Model == nil {
-		return nil, ErrModelNotConfigured
+		return "", ErrModelNotConfigured
 	}
 	if strings.TrimSpace(prompt) == "" {
-		return nil, ErrEmptyPrompt
+		return "", ErrEmptyPrompt
 	}
 
 	userMessage := Message{Text: prompt, Role: RoleUser}
-	a.addMessage(userMessage)
+	var response strings.Builder
+	err := a.Loop(ctx, userMessage, &response)
+	if err != nil {
+		return "", err
+	}
+	return response.String(), nil
+}
 
+func (a *Agent) Loop(ctx context.Context, message Message, response *strings.Builder) error {
 	request := ai.AIRequest{SystemPrompt: buildSystemPrompt(a.Messages)}
 	res, err := a.Model.Generate(ctx, request)
 	if err != nil {
-		return nil, err
+		return err
 	}
+
+	a.addMessage(message)
 
 	assistantMessage := Message{Text: res.Text, Role: RoleAssistant}
 	a.addMessage(assistantMessage)
 
-	return &assistantMessage, nil
+	response.WriteString("\n\n")
+	response.WriteString("Agent: \n")
+	response.WriteString("\t")
+	response.WriteString(assistantMessage.Text)
+
+	toolReq, tCall := detectToolCall(res.Text)
+
+	if tCall {
+		res, err := callTool(toolReq, a.Tools)
+
+		response.WriteString("\n\n")
+		response.WriteString("Tool ")
+		response.WriteString(toolReq.ID)
+		response.WriteString(" ")
+		response.WriteString(toolReq.Args)
+		response.WriteString(":\n")
+		response.WriteString("\t")
+		response.WriteString(res.Text)
+
+		toolMessage := Message{res.Text, RoleTool}
+		if err != nil {
+			toolMessage = Message{err.Error(), RoleTool}
+		}
+		return a.Loop(ctx, toolMessage, response)
+	} else {
+		return nil
+	}
 }
 
 func (a *Agent) addMessage(newMessage Message) {

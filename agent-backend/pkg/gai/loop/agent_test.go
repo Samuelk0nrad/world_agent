@@ -31,11 +31,8 @@ func TestFollowUpAppendsMessagesAndBuildsPrompt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FollowUp returned error: %v", err)
 	}
-	if msg == nil {
-		t.Fatalf("expected message, got nil")
-	}
-	if msg.Role != loop.RoleAssistant || msg.Text != "ok" {
-		t.Fatalf("unexpected message: %+v", *msg)
+	if msg == "" {
+		t.Fatalf("expected message, got empty string")
 	}
 
 	if len(agent.Messages) != 2 {

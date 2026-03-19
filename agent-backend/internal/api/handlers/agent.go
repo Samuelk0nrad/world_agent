@@ -55,6 +55,6 @@ func (h *AgentHandler) PostAgent(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"prompt":  req.Prompt,
-		"message": message.Text,
+		"message": message,
 	})
 }
