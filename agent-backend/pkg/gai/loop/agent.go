@@ -3,19 +3,24 @@ package loop
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
 	"agent-backend/pkg/gai/ai"
 )
 
-const defaultMaxLoopIterations = 8
+const (
+	defaultMaxLoopIterations = 8
+	defaultToolSystemPrompt  = "When a tool is required, respond ONLY with valid JSON for a single function call."
+)
 
 type Agent struct {
 	Model             ai.Model
 	Tools             []Tool
 	Messages          []Message
-	SystemPrompt      string
+	BaseSystemPrompt  string
+	ToolSystemPrompt  string
 	MaxLoopIterations int
 }
 
@@ -23,11 +28,35 @@ func NewAgent(model ai.Model, tools []Tool, systemPrompt string) *Agent {
 	agent := &Agent{
 		Model:             model,
 		Tools:             tools,
-		SystemPrompt:      systemPrompt,
+		BaseSystemPrompt:  systemPrompt,
+		ToolSystemPrompt:  defaultToolSystemPrompt,
 		MaxLoopIterations: defaultMaxLoopIterations,
 	}
 
 	return agent
+}
+
+func NewAgentWithPrompts(model ai.Model, tools []Tool, baseSystemPrompt, toolSystemPrompt string) *Agent {
+	agent := NewAgent(model, tools, baseSystemPrompt)
+	if strings.TrimSpace(toolSystemPrompt) != "" {
+		agent.ToolSystemPrompt = toolSystemPrompt
+	}
+	return agent
+}
+
+func NewAgentFromPromptFiles(model ai.Model, tools []Tool, basePromptPath, toolPromptPath string) (*Agent, error) {
+	basePrompt, err := LoadPromptFromFile(basePromptPath)
+	if err != nil {
+		return nil, err
+	}
+	toolPrompt := defaultToolSystemPrompt
+	if strings.TrimSpace(toolPromptPath) != "" {
+		toolPrompt, err = LoadPromptFromFile(toolPromptPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return NewAgentWithPrompts(model, tools, basePrompt, toolPrompt), nil
 }
 
 func (a *Agent) FollowUp(ctx context.Context, prompt string) (string, error) {
@@ -62,7 +91,7 @@ func (a *Agent) Loop(ctx context.Context, message Message, response *strings.Bui
 	a.addMessage(message)
 
 	for i := 0; i < a.MaxLoopIterations; i++ {
-		request := ai.AIRequest{SystemPrompt: buildSystemPrompt(a.SystemPrompt, a.Messages)}
+		request := ai.AIRequest{SystemPrompt: buildSystemPrompt(a.BaseSystemPrompt, a.ToolSystemPrompt, a.Tools, a.Messages)}
 		res, err := a.Model.Generate(ctx, request)
 		if err != nil {
 			return err
@@ -100,6 +129,10 @@ func (a *Agent) Loop(ctx context.Context, message Message, response *strings.Bui
 
 		toolMessage := Message{Text: toolResultText, Role: RoleTool}
 		a.addMessage(toolMessage)
+
+		if err != nil {
+			return nil
+		}
 	}
 
 	return fmt.Errorf("%w: limit=%d", ErrMaxIterations, a.MaxLoopIterations)
@@ -109,12 +142,24 @@ func (a *Agent) addMessage(newMessage Message) {
 	a.Messages = append(a.Messages, newMessage)
 }
 
-func buildSystemPrompt(systemPrompt string, messages []Message) string {
+func buildSystemPrompt(baseSystemPrompt, toolSystemPrompt string, tools []Tool, messages []Message) string {
 	var builder strings.Builder
 
-	if strings.TrimSpace(systemPrompt) != "" {
-		builder.WriteString(systemPrompt)
+	if strings.TrimSpace(baseSystemPrompt) != "" {
+		builder.WriteString(baseSystemPrompt)
 		builder.WriteString("\n\n")
+	}
+
+	if len(tools) > 0 {
+		prompt := strings.TrimSpace(toolSystemPrompt)
+		if prompt == "" {
+			prompt = defaultToolSystemPrompt
+		}
+		builder.WriteString(prompt)
+		builder.WriteString("\n")
+		builder.WriteString("<tools>")
+		builder.WriteString(renderToolSignatures(tools))
+		builder.WriteString("</tools>")
 	}
 
 	builder.WriteString("<conversation>")
@@ -140,5 +185,36 @@ func renderMessages(messages []Message) string {
 		builder.WriteString(">")
 	}
 
+	return builder.String()
+}
+
+func renderToolSignatures(tools []Tool) string {
+	if len(tools) == 0 {
+		return ""
+	}
+
+	sorted := make([]Tool, 0, len(tools))
+	for _, tool := range tools {
+		if tool != nil {
+			sorted = append(sorted, tool)
+		}
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Name() < sorted[j].Name()
+	})
+
+	var builder strings.Builder
+	for _, t := range sorted {
+		builder.WriteString("\n<tool name=\"")
+		builder.WriteString(t.Name())
+		builder.WriteString("\">")
+		builder.WriteString("\n<description>")
+		builder.WriteString(t.Description())
+		builder.WriteString("</description>")
+		builder.WriteString("\n<signature>")
+		builder.WriteString(t.Params())
+		builder.WriteString("</signature>")
+		builder.WriteString("\n</tool>")
+	}
 	return builder.String()
 }

@@ -10,4 +10,6 @@ var (
 	ErrInvalidToolRequest = errors.New("invalid tool request")
 	ErrToolNotFound       = errors.New("tool not found")
 	ErrMaxIterations      = errors.New("max loop iterations exceeded")
+	ErrPromptPathEmpty    = errors.New("prompt path is empty")
+	ErrPromptFileType     = errors.New("prompt file must be .md or .txt")
 )

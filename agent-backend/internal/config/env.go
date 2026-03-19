@@ -8,6 +8,7 @@ import (
 
 type Env struct {
 	GeminiAPIKey string `mapstructure:"GEMINI_API_KEY"`
+	PromptPath   string `mapstructure:"PROMPT_PATH"`
 }
 
 func NewEnv(filename string, override bool) *Env {

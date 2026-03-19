@@ -24,7 +24,10 @@ func NewAgentHandler(env *config.Env) *AgentHandler {
 	tools := []loop.Tool{
 		loop.NewEchoTool(),
 	}
-	agent := loop.NewAgent(model, tools, "you are a the World Agent")
+	agent, err := loop.NewAgentFromPromptFiles(model, tools, env.PromptPath+"/system.md", env.PromptPath+"/toolCall.md")
+	if err != nil {
+		return &AgentHandler{initErr: err}
+	}
 
 	return &AgentHandler{agent: agent}
 }
@@ -56,7 +59,8 @@ func (h *AgentHandler) PostAgent(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"prompt":  req.Prompt,
-		"message": message,
+		"prompt":   req.Prompt,
+		"message":  message,
+		"messages": h.agent.Messages,
 	})
 }

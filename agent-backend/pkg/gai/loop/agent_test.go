@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -99,9 +101,11 @@ func TestFollowUpValidation(t *testing.T) {
 }
 
 type fakeTool struct {
-	name string
-	resp string
-	err  error
+	name   string
+	desc   string
+	params string
+	resp   string
+	err    error
 }
 
 func (t *fakeTool) Name() string {
@@ -109,10 +113,16 @@ func (t *fakeTool) Name() string {
 }
 
 func (t *fakeTool) Description() string {
+	if t.desc != "" {
+		return t.desc
+	}
 	return "fake tool"
 }
 
 func (t *fakeTool) Params() string {
+	if t.params != "" {
+		return t.params
+	}
 	return "{}"
 }
 
@@ -197,5 +207,84 @@ func TestFollowUpRespectsMaxLoopIterations(t *testing.T) {
 	_, err := agent.FollowUp(context.Background(), "loop")
 	if !errors.Is(err, loop.ErrMaxIterations) {
 		t.Fatalf("expected ErrMaxIterations, got %v", err)
+	}
+}
+
+func TestFollowUpIncludesToolPromptAndSignatures(t *testing.T) {
+	model := &fakeModel{}
+	tools := []loop.Tool{
+		&fakeTool{name: "zeta", desc: "z desc", params: `{"z":"1"}`},
+		&fakeTool{name: "alpha", desc: "a desc", params: `{"a":"1"}`},
+	}
+	agent := loop.NewAgentWithPrompts(model, tools, "base prompt", "tool prompt")
+
+	_, err := agent.FollowUp(context.Background(), "hello")
+	if err != nil {
+		t.Fatalf("FollowUp returned error: %v", err)
+	}
+
+	sp := model.lastReq.SystemPrompt
+	if !strings.Contains(sp, "base prompt") || !strings.Contains(sp, "tool prompt") {
+		t.Fatalf("expected base/tool prompts in system prompt, got %q", sp)
+	}
+	if !strings.Contains(sp, "<tools>") || !strings.Contains(sp, "<tool name=\"alpha\">") || !strings.Contains(sp, "<tool name=\"zeta\">") {
+		t.Fatalf("expected rendered tool signatures, got %q", sp)
+	}
+	if strings.Index(sp, "<tool name=\"alpha\">") > strings.Index(sp, "<tool name=\"zeta\">") {
+		t.Fatalf("expected alphabetical tool ordering, got %q", sp)
+	}
+}
+
+func TestLoadPromptFromFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "prompt.md")
+	if err := os.WriteFile(path, []byte("  file prompt  \n"), 0o600); err != nil {
+		t.Fatalf("failed writing prompt file: %v", err)
+	}
+
+	prompt, err := loop.LoadPromptFromFile(path)
+	if err != nil {
+		t.Fatalf("LoadPromptFromFile returned error: %v", err)
+	}
+	if prompt != "file prompt" {
+		t.Fatalf("expected trimmed prompt, got %q", prompt)
+	}
+}
+
+func TestLoadPromptFromFileValidation(t *testing.T) {
+	_, err := loop.LoadPromptFromFile("   ")
+	if !errors.Is(err, loop.ErrPromptPathEmpty) {
+		t.Fatalf("expected ErrPromptPathEmpty, got %v", err)
+	}
+
+	dir := t.TempDir()
+	bad := filepath.Join(dir, "prompt.json")
+	if err := os.WriteFile(bad, []byte(`{"x":1}`), 0o600); err != nil {
+		t.Fatalf("failed writing prompt file: %v", err)
+	}
+
+	_, err = loop.LoadPromptFromFile(bad)
+	if !errors.Is(err, loop.ErrPromptFileType) {
+		t.Fatalf("expected ErrPromptFileType, got %v", err)
+	}
+}
+
+func TestNewAgentFromPromptFiles(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "base.txt")
+	tool := filepath.Join(dir, "tool.md")
+	if err := os.WriteFile(base, []byte("base from file"), 0o600); err != nil {
+		t.Fatalf("failed writing base prompt: %v", err)
+	}
+	if err := os.WriteFile(tool, []byte("tool from file"), 0o600); err != nil {
+		t.Fatalf("failed writing tool prompt: %v", err)
+	}
+
+	agent, err := loop.NewAgentFromPromptFiles(&fakeModel{}, nil, base, tool)
+	if err != nil {
+		t.Fatalf("NewAgentFromPromptFiles returned error: %v", err)
+	}
+	if agent.BaseSystemPrompt != "base from file" || agent.ToolSystemPrompt != "tool from file" {
+		t.Fatalf("unexpected prompts on agent: %+v", agent)
 	}
 }
