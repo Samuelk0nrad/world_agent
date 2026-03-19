@@ -21,7 +21,9 @@ func NewAgentHandler(env *config.Env) *AgentHandler {
 		return &AgentHandler{initErr: err}
 	}
 
-	var tools []loop.Tool
+	tools := []loop.Tool{
+		loop.NewEchoTool(),
+	}
 	agent := loop.NewAgent(model, tools, "you are a the World Agent")
 
 	return &AgentHandler{agent: agent}

@@ -48,7 +48,7 @@ func (a *Agent) FollowUp(ctx context.Context, prompt string) (string, error) {
 }
 
 func (a *Agent) Loop(ctx context.Context, message Message, response *strings.Builder) error {
-	request := ai.AIRequest{SystemPrompt: buildSystemPrompt(a.Messages)}
+	request := ai.AIRequest{SystemPrompt: buildSystemPrompt(a.Messages), Prompt: "\n" + string(message.Role) + ": \n\t" + message.Text}
 	res, err := a.Model.Generate(ctx, request)
 	if err != nil {
 		return err
