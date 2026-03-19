@@ -21,7 +21,7 @@ func (t *EchoTool) Params() string {
 }
 
 func (t *EchoTool) Function(req *ToolRequest) (*ToolResponse, error) {
-	text := strings.TrimSpace(req.Args)
+	text := strings.TrimSpace(req.ArgsString())
 	if text == "" {
 		text = "(empty)"
 	}

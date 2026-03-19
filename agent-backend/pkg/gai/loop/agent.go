@@ -2,27 +2,30 @@ package loop
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"agent-backend/pkg/gai/ai"
 )
 
+const defaultMaxLoopIterations = 8
+
 type Agent struct {
-	Model        ai.Model
-	Tools        []Tool
-	Messages     []Message
-	SystemPrompt string
+	Model             ai.Model
+	Tools             []Tool
+	Messages          []Message
+	SystemPrompt      string
+	MaxLoopIterations int
 }
 
 func NewAgent(model ai.Model, tools []Tool, systemPrompt string) *Agent {
 	agent := &Agent{
-		Model:        model,
-		Tools:        tools,
-		SystemPrompt: systemPrompt,
+		Model:             model,
+		Tools:             tools,
+		SystemPrompt:      systemPrompt,
+		MaxLoopIterations: defaultMaxLoopIterations,
 	}
-
-	agent.addMessage(Message{systemPrompt, RoleSystem})
 
 	return agent
 }
@@ -48,52 +51,71 @@ func (a *Agent) FollowUp(ctx context.Context, prompt string) (string, error) {
 }
 
 func (a *Agent) Loop(ctx context.Context, message Message, response *strings.Builder) error {
-	request := ai.AIRequest{SystemPrompt: buildSystemPrompt(a.Messages), Prompt: "\n" + string(message.Role) + ": \n\t" + message.Text}
-	res, err := a.Model.Generate(ctx, request)
-	if err != nil {
-		return err
+	if response == nil {
+		return ErrNilResponseBuilder
+	}
+
+	if a.MaxLoopIterations <= 0 {
+		a.MaxLoopIterations = defaultMaxLoopIterations
 	}
 
 	a.addMessage(message)
 
-	assistantMessage := Message{Text: res.Text, Role: RoleAssistant}
-	a.addMessage(assistantMessage)
+	for i := 0; i < a.MaxLoopIterations; i++ {
+		request := ai.AIRequest{SystemPrompt: buildSystemPrompt(a.SystemPrompt, a.Messages)}
+		res, err := a.Model.Generate(ctx, request)
+		if err != nil {
+			return err
+		}
 
-	response.WriteString("\n\n")
-	response.WriteString("Agent: \n")
-	response.WriteString("\t")
-	response.WriteString(assistantMessage.Text)
+		assistantMessage := Message{Text: res.Text, Role: RoleAssistant}
+		a.addMessage(assistantMessage)
 
-	toolReq, tCall := detectToolCall(res.Text)
+		response.WriteString("\n\n")
+		response.WriteString("Agent: \n")
+		response.WriteString("\t")
+		response.WriteString(assistantMessage.Text)
 
-	if tCall {
-		res, err := callTool(toolReq, a.Tools)
+		toolReq, tCall := detectToolCall(res.Text)
+		if !tCall {
+			return nil
+		}
+
+		toolRes, err := callTool(toolReq, a.Tools)
+		toolResultText := ""
+		if err != nil {
+			toolResultText = err.Error()
+		} else if toolRes != nil {
+			toolResultText = toolRes.Text
+		}
 
 		response.WriteString("\n\n")
 		response.WriteString("Tool ")
 		response.WriteString(toolReq.ID)
 		response.WriteString(" ")
-		response.WriteString(toolReq.Args)
+		response.WriteString(toolReq.ArgsString())
 		response.WriteString(":\n")
 		response.WriteString("\t")
-		response.WriteString(res.Text)
+		response.WriteString(toolResultText)
 
-		toolMessage := Message{res.Text, RoleTool}
-		if err != nil {
-			toolMessage = Message{err.Error(), RoleTool}
-		}
-		return a.Loop(ctx, toolMessage, response)
-	} else {
-		return nil
+		toolMessage := Message{Text: toolResultText, Role: RoleTool}
+		a.addMessage(toolMessage)
 	}
+
+	return fmt.Errorf("%w: limit=%d", ErrMaxIterations, a.MaxLoopIterations)
 }
 
 func (a *Agent) addMessage(newMessage Message) {
 	a.Messages = append(a.Messages, newMessage)
 }
 
-func buildSystemPrompt(messages []Message) string {
+func buildSystemPrompt(systemPrompt string, messages []Message) string {
 	var builder strings.Builder
+
+	if strings.TrimSpace(systemPrompt) != "" {
+		builder.WriteString(systemPrompt)
+		builder.WriteString("\n\n")
+	}
 
 	builder.WriteString("<conversation>")
 	builder.WriteString(renderMessages(messages))

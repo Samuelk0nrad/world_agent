@@ -1,6 +1,9 @@
 package loop
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 type ToolArg struct {
 	ArgType     string `json:"type"`
@@ -16,9 +19,9 @@ type ToolResponse struct {
 }
 
 type ToolRequest struct {
-	ID   string `json:"id"`
-	Type string `json:"type"`
-	Args string `json:"arguments"`
+	ID   string          `json:"id"`
+	Type string          `json:"type"`
+	Args json.RawMessage `json:"arguments"`
 }
 
 type Tool interface {
@@ -39,14 +42,30 @@ func detectToolCall(s string) (*ToolRequest, bool) {
 	return nil, false
 }
 
+func (r *ToolRequest) ArgsString() string {
+	if r == nil {
+		return ""
+	}
+	if len(r.Args) == 0 {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(r.Args, &s); err == nil {
+		return s
+	}
+	return string(r.Args)
+}
+
 func callTool(req *ToolRequest, tools []Tool) (*ToolResponse, error) {
-	var callTool Tool
+	if req == nil || req.ID == "" || req.Type != "function" {
+		return nil, ErrInvalidToolRequest
+	}
 
 	for _, tool := range tools {
 		if tool.Name() == req.ID {
-			callTool = tool
+			return tool.Function(req)
 		}
 	}
 
-	return callTool.Function(req)
+	return nil, fmt.Errorf("%w: %s", ErrToolNotFound, req.ID)
 }
