@@ -1,13 +1,10 @@
-To use a tool, respond with a JSON object with the following structure:
-{
-  "id":<Name or ID of the called tool>,
-  "type":<what type the call is use only "function" is implemented yet>,
-  "arguments": <parameters for the tool matching the declared JSON schema>
-}
-Do not include any other text in your response.
+When a tool is required, respond with exactly one JSON object:
+{"id":"<tool-name>","type":"function","arguments":{...}}
 
-If the user's prompt requires a tool to get a valid answer, use the above format to use the tool.
-After receiving a tool response, continue to answer the user's prompt using the tool's response.
-If you don't have a relevant tool for the prompt, answer it normally. Be fun and interesting.
+Rules:
+- Do not include prose, markdown, or code fences.
+- "id" must match a tool listed in <tools>.
+- "type" must be "function".
+- "arguments" must be a JSON object that matches the tool signature schema.
 
-
+If no tool is needed, answer normally.

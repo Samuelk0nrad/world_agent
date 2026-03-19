@@ -174,7 +174,7 @@ func TestFollowUpStopsWhenToolErrors(t *testing.T) {
 }
 
 func TestFollowUpContinuesAfterSuccessfulTool(t *testing.T) {
-	arguments, _ := json.Marshal("hello")
+	arguments, _ := json.Marshal(map[string]string{"text": "hello"})
 	model := &fakeModel{
 		responses: []string{
 			`{"id":"echo","type":"function","arguments":` + string(arguments) + `}`,
@@ -188,7 +188,7 @@ func TestFollowUpContinuesAfterSuccessfulTool(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FollowUp returned unexpected error: %v", err)
 	}
-	if !strings.Contains(msg, "Tool echo hello") || !strings.Contains(msg, "final answer") {
+	if !strings.Contains(msg, "Tool echo {\"text\":\"hello\"}") || !strings.Contains(msg, "final answer") {
 		t.Fatalf("expected tool and final answer in transcript, got %q", msg)
 	}
 	if model.callCount != 2 {
@@ -198,7 +198,7 @@ func TestFollowUpContinuesAfterSuccessfulTool(t *testing.T) {
 
 func TestFollowUpRespectsMaxLoopIterations(t *testing.T) {
 	model := &fakeModel{
-		responses: []string{`{"id":"echo","type":"function","arguments":"x"}`},
+		responses: []string{`{"id":"echo","type":"function","arguments":{"text":"x"}}`},
 	}
 	tool := &fakeTool{name: "echo", resp: "x"}
 	agent := loop.NewAgent(model, []loop.Tool{tool}, "system")
@@ -207,6 +207,21 @@ func TestFollowUpRespectsMaxLoopIterations(t *testing.T) {
 	_, err := agent.FollowUp(context.Background(), "loop")
 	if !errors.Is(err, loop.ErrMaxIterations) {
 		t.Fatalf("expected ErrMaxIterations, got %v", err)
+	}
+}
+
+func TestFollowUpMalformedToolCallReturnsValidationError(t *testing.T) {
+	model := &fakeModel{
+		responses: []string{`{"id":"echo","type":"function","arguments":`},
+	}
+	agent := loop.NewAgent(model, []loop.Tool{loop.NewEchoTool()}, "system")
+
+	msg, err := agent.FollowUp(context.Background(), "use tool")
+	if err != nil {
+		t.Fatalf("FollowUp returned unexpected error: %v", err)
+	}
+	if !strings.Contains(msg, loop.ErrToolCallType.Error()) {
+		t.Fatalf("expected tool-call validation message, got %q", msg)
 	}
 }
 
@@ -232,6 +247,9 @@ func TestFollowUpIncludesToolPromptAndSignatures(t *testing.T) {
 	}
 	if strings.Index(sp, "<tool name=\"alpha\">") > strings.Index(sp, "<tool name=\"zeta\">") {
 		t.Fatalf("expected alphabetical tool ordering, got %q", sp)
+	}
+	if !strings.Contains(sp, "<conversation>") || !strings.Contains(sp, "</conversation>") {
+		t.Fatalf("expected conversation block in system prompt, got %q", sp)
 	}
 }
 
@@ -267,6 +285,11 @@ func TestLoadPromptFromFileValidation(t *testing.T) {
 	if !errors.Is(err, loop.ErrPromptFileType) {
 		t.Fatalf("expected ErrPromptFileType, got %v", err)
 	}
+
+	_, err = loop.LoadPromptFromFile(filepath.Join(dir, "missing.md"))
+	if !errors.Is(err, loop.ErrPromptMissing) {
+		t.Fatalf("expected ErrPromptMissing, got %v", err)
+	}
 }
 
 func TestNewAgentFromPromptFiles(t *testing.T) {
@@ -286,5 +309,80 @@ func TestNewAgentFromPromptFiles(t *testing.T) {
 	}
 	if agent.BaseSystemPrompt != "base from file" || agent.ToolSystemPrompt != "tool from file" {
 		t.Fatalf("unexpected prompts on agent: %+v", agent)
+	}
+}
+
+func TestNewAgentFromPromptFilesUsesDefaultWhenToolPromptMissing(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "base.txt")
+	if err := os.WriteFile(base, []byte("base from file"), 0o600); err != nil {
+		t.Fatalf("failed writing base prompt: %v", err)
+	}
+
+	agent, err := loop.NewAgentFromPromptFiles(&fakeModel{}, nil, base, filepath.Join(dir, "missing-tool.md"))
+	if err != nil {
+		t.Fatalf("NewAgentFromPromptFiles returned error: %v", err)
+	}
+	if !strings.Contains(agent.ToolSystemPrompt, "respond ONLY with one JSON object") {
+		t.Fatalf("expected fallback tool prompt, got %q", agent.ToolSystemPrompt)
+	}
+}
+
+func TestDecodeToolArgs(t *testing.T) {
+	req := &loop.ToolRequest{
+		ID:   "echo",
+		Type: "function",
+		Args: json.RawMessage(`{"text":"hello"}`),
+	}
+	var args struct {
+		Text string `json:"text"`
+	}
+	if err := loop.DecodeToolArgs(req, &args); err != nil {
+		t.Fatalf("DecodeToolArgs returned error: %v", err)
+	}
+	if args.Text != "hello" {
+		t.Fatalf("expected decoded text, got %q", args.Text)
+	}
+}
+
+func TestDecodeToolArgsValidation(t *testing.T) {
+	req := &loop.ToolRequest{ID: "echo", Type: "function"}
+
+	var args struct {
+		Text string `json:"text"`
+	}
+	err := loop.DecodeToolArgs(req, &args)
+	if !errors.Is(err, loop.ErrToolArgsMissing) {
+		t.Fatalf("expected ErrToolArgsMissing, got %v", err)
+	}
+
+	var nilTarget *struct {
+		Text string `json:"text"`
+	}
+	err = loop.DecodeToolArgs(req, nilTarget)
+	if !errors.Is(err, loop.ErrArgsDecodeTarget) {
+		t.Fatalf("expected ErrArgsDecodeTarget, got %v", err)
+	}
+
+	req.Args = json.RawMessage(`{`)
+	err = loop.DecodeToolArgs(req, &args)
+	if !errors.Is(err, loop.ErrToolCallMalformed) {
+		t.Fatalf("expected ErrToolCallMalformed, got %v", err)
+	}
+}
+
+func TestAgentRetainsMaxMessages(t *testing.T) {
+	model := &fakeModel{}
+	agent := loop.NewAgent(model, nil, "system")
+	agent.MaxMessages = 3
+
+	for i := 0; i < 3; i++ {
+		if _, err := agent.FollowUp(context.Background(), "hello"); err != nil {
+			t.Fatalf("FollowUp returned error: %v", err)
+		}
+	}
+
+	if len(agent.Messages) != 3 {
+		t.Fatalf("expected capped message length 3, got %d", len(agent.Messages))
 	}
 }

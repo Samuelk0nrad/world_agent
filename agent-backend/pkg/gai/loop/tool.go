@@ -3,6 +3,7 @@ package loop
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 type ToolArg struct {
@@ -32,14 +33,19 @@ type Tool interface {
 }
 
 func detectToolCall(s string) (*ToolRequest, bool) {
-	var tr ToolRequest
-	if err := json.Unmarshal([]byte(s), &tr); err != nil {
+	payload := strings.TrimSpace(s)
+	if payload == "" {
 		return nil, false
 	}
-	if tr.Type == "function" && tr.ID != "" {
-		return &tr, true
+	if !strings.HasPrefix(payload, "{") {
+		return nil, false
 	}
-	return nil, false
+
+	var tr ToolRequest
+	if err := json.Unmarshal([]byte(payload), &tr); err != nil {
+		return &ToolRequest{}, true
+	}
+	return &tr, true
 }
 
 func (r *ToolRequest) ArgsString() string {
@@ -57,8 +63,20 @@ func (r *ToolRequest) ArgsString() string {
 }
 
 func callTool(req *ToolRequest, tools []Tool) (*ToolResponse, error) {
-	if req == nil || req.ID == "" || req.Type != "function" {
+	if req == nil {
 		return nil, ErrInvalidToolRequest
+	}
+	if strings.TrimSpace(req.Type) == "" {
+		return nil, ErrToolCallType
+	}
+	if req.Type != "function" {
+		return nil, fmt.Errorf("%w: got=%s", ErrToolCallType, req.Type)
+	}
+	if strings.TrimSpace(req.ID) == "" {
+		return nil, ErrToolCallID
+	}
+	if len(req.Args) == 0 {
+		return nil, ErrToolArgsMissing
 	}
 
 	for _, tool := range tools {
@@ -68,4 +86,20 @@ func callTool(req *ToolRequest, tools []Tool) (*ToolResponse, error) {
 	}
 
 	return nil, fmt.Errorf("%w: %s", ErrToolNotFound, req.ID)
+}
+
+func DecodeToolArgs[T any](req *ToolRequest, target *T) error {
+	if req == nil {
+		return ErrInvalidToolRequest
+	}
+	if target == nil {
+		return ErrArgsDecodeTarget
+	}
+	if len(req.Args) == 0 {
+		return ErrToolArgsMissing
+	}
+	if err := json.Unmarshal(req.Args, target); err != nil {
+		return fmt.Errorf("%w: %v", ErrToolCallMalformed, err)
+	}
+	return nil
 }

@@ -17,11 +17,20 @@ func (t *EchoTool) Description() string {
 }
 
 func (t *EchoTool) Params() string {
-	return `{"arguments":{"type":"string","description":"Text to echo back"}}`
+	return `{"type":"object","required":["text"],"properties":{"text":{"type":"string","description":"Text to echo back"}}}`
+}
+
+type echoArgs struct {
+	Text string `json:"text"`
 }
 
 func (t *EchoTool) Function(req *ToolRequest) (*ToolResponse, error) {
-	text := strings.TrimSpace(req.ArgsString())
+	var args echoArgs
+	if err := DecodeToolArgs(req, &args); err != nil {
+		return nil, err
+	}
+
+	text := strings.TrimSpace(args.Text)
 	if text == "" {
 		text = "(empty)"
 	}

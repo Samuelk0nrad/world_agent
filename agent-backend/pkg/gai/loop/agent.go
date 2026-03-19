@@ -12,7 +12,14 @@ import (
 
 const (
 	defaultMaxLoopIterations = 8
-	defaultToolSystemPrompt  = "When a tool is required, respond ONLY with valid JSON for a single function call."
+	defaultToolSystemPrompt  = `When a tool is required, respond ONLY with one JSON object using this exact shape:
+{"id":"<tool-name>","type":"function","arguments":{...}}
+Rules:
+- No prose, markdown, or code fences.
+- "id" must match one tool name from <tools>.
+- "type" must be "function".
+- "arguments" must be a JSON object that satisfies the tool signature.`
+	defaultMaxMessages = 100
 )
 
 type Agent struct {
@@ -22,6 +29,7 @@ type Agent struct {
 	BaseSystemPrompt  string
 	ToolSystemPrompt  string
 	MaxLoopIterations int
+	MaxMessages       int
 }
 
 func NewAgent(model ai.Model, tools []Tool, systemPrompt string) *Agent {
@@ -31,6 +39,7 @@ func NewAgent(model ai.Model, tools []Tool, systemPrompt string) *Agent {
 		BaseSystemPrompt:  systemPrompt,
 		ToolSystemPrompt:  defaultToolSystemPrompt,
 		MaxLoopIterations: defaultMaxLoopIterations,
+		MaxMessages:       defaultMaxMessages,
 	}
 
 	return agent
@@ -49,12 +58,9 @@ func NewAgentFromPromptFiles(model ai.Model, tools []Tool, basePromptPath, toolP
 	if err != nil {
 		return nil, err
 	}
-	toolPrompt := defaultToolSystemPrompt
-	if strings.TrimSpace(toolPromptPath) != "" {
-		toolPrompt, err = LoadPromptFromFile(toolPromptPath)
-		if err != nil {
-			return nil, err
-		}
+	toolPrompt, err := LoadOptionalPromptFromFile(toolPromptPath, defaultToolSystemPrompt)
+	if err != nil {
+		return nil, err
 	}
 	return NewAgentWithPrompts(model, tools, basePrompt, toolPrompt), nil
 }
@@ -140,6 +146,13 @@ func (a *Agent) Loop(ctx context.Context, message Message, response *strings.Bui
 
 func (a *Agent) addMessage(newMessage Message) {
 	a.Messages = append(a.Messages, newMessage)
+	if a.MaxMessages <= 0 {
+		return
+	}
+	if len(a.Messages) > a.MaxMessages {
+		start := len(a.Messages) - a.MaxMessages
+		a.Messages = append([]Message(nil), a.Messages[start:]...)
+	}
 }
 
 func buildSystemPrompt(baseSystemPrompt, toolSystemPrompt string, tools []Tool, messages []Message) string {
@@ -156,10 +169,9 @@ func buildSystemPrompt(baseSystemPrompt, toolSystemPrompt string, tools []Tool, 
 			prompt = defaultToolSystemPrompt
 		}
 		builder.WriteString(prompt)
-		builder.WriteString("\n")
-		builder.WriteString("<tools>")
+		builder.WriteString("<tools>\n")
 		builder.WriteString(renderToolSignatures(tools))
-		builder.WriteString("</tools>")
+		builder.WriteString("\n</tools>")
 	}
 
 	builder.WriteString("<conversation>")
