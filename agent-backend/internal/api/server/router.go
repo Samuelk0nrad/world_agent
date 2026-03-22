@@ -7,7 +7,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(env *config.Env) *gin.Engine {
+type RouterRuntime struct {
+	Router        *gin.Engine
+	geminiHandler *handlers.GeminiHandler
+	agentHandler  *handlers.AgentHandler
+}
+
+func NewRouter(env *config.Env) *RouterRuntime {
 	router := gin.Default()
 
 	healthHandler := handlers.NewHealthHandlers()
@@ -21,5 +27,26 @@ func NewRouter(env *config.Env) *gin.Engine {
 		api.POST("/agent", agentHandler.PostAgent)
 	}
 
-	return router
+	return &RouterRuntime{
+		Router:        router,
+		geminiHandler: geminiHandler,
+		agentHandler:  agentHandler,
+	}
+}
+
+func (r *RouterRuntime) Close() error {
+	if r == nil {
+		return nil
+	}
+	if r.agentHandler != nil {
+		if err := r.agentHandler.Close(); err != nil {
+			return err
+		}
+	}
+	if r.geminiHandler != nil {
+		if err := r.geminiHandler.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
 }

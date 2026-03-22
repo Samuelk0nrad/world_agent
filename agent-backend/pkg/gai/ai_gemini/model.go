@@ -20,6 +20,14 @@ func (m *Model) Name() string {
 	return m.name
 }
 
+func (m *Model) Close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.api = nil
+	return nil
+}
+
 func (m *Model) Generate(ctx context.Context, req ai.AIRequest) (*ai.AIResponse, error) {
 	client, err := m.getClient(ctx)
 	if err != nil {

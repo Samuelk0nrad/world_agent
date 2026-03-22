@@ -52,3 +52,10 @@ func (h *GeminiHandler) GetResponse(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"response": res.Text})
 }
+
+func (h *GeminiHandler) Close() error {
+	if h.geminiModel == nil {
+		return nil
+	}
+	return h.geminiModel.Close()
+}
