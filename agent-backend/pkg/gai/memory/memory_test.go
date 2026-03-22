@@ -25,13 +25,13 @@ func TestMemoryAddGetAndLimit(t *testing.T) {
 		t.Fatalf("expected session id 1, got %q", got)
 	}
 
-	if err := m.AddMessage("first", memory.RoleUser); err != nil {
+	if _, err := m.AddMessage("first", memory.RoleUser); err != nil {
 		t.Fatalf("AddMessage first returned error: %v", err)
 	}
-	if err := m.AddMessage("second", memory.RoleAssistant); err != nil {
+	if _, err := m.AddMessage("second", memory.RoleAssistant); err != nil {
 		t.Fatalf("AddMessage second returned error: %v", err)
 	}
-	if err := m.AddMessage("third", memory.RoleTool); err != nil {
+	if _, err := m.AddMessage("third", memory.RoleTool); err != nil {
 		t.Fatalf("AddMessage third returned error: %v", err)
 	}
 
@@ -61,10 +61,10 @@ func TestMemoryEnrichPromptConversationOnly(t *testing.T) {
 		t.Fatalf("NewMemory returned error: %v", err)
 	}
 
-	if err := m.AddMessage("hello", memory.RoleUser); err != nil {
+	if _, err := m.AddMessage("hello", memory.RoleUser); err != nil {
 		t.Fatalf("AddMessage returned error: %v", err)
 	}
-	if err := m.AddMessage("hi there", memory.RoleAssistant); err != nil {
+	if _, err := m.AddMessage("hi there", memory.RoleAssistant); err != nil {
 		t.Fatalf("AddMessage returned error: %v", err)
 	}
 
@@ -90,10 +90,10 @@ func TestMemoryAddMessageValidation(t *testing.T) {
 		t.Fatalf("NewMemory returned error: %v", err)
 	}
 
-	if err := m.AddMessage("   ", memory.RoleUser); err != memory.ErrMessageContentEmpty {
+	if _, err := m.AddMessage("   ", memory.RoleUser); err != memory.ErrMessageContentEmpty {
 		t.Fatalf("expected ErrMessageContentEmpty, got %v", err)
 	}
-	if err := m.AddMessage("ok", memory.Role("invalid")); err != memory.ErrRoleInvalid {
+	if _, err := m.AddMessage("ok", memory.Role("invalid")); err != memory.ErrRoleInvalid {
 		t.Fatalf("expected ErrRoleInvalid, got %v", err)
 	}
 }
@@ -110,7 +110,7 @@ func TestMemoryConcurrentAdds(t *testing.T) {
 	for i := 0; i < n; i++ {
 		go func() {
 			defer wg.Done()
-			if addErr := m.AddMessage("msg", memory.RoleUser); addErr != nil {
+			if _, addErr := m.AddMessage("msg", memory.RoleUser); addErr != nil {
 				t.Errorf("AddMessage returned error: %v", addErr)
 			}
 		}()

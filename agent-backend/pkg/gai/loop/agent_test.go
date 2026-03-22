@@ -11,6 +11,7 @@ import (
 
 	"agent-backend/pkg/gai/ai"
 	"agent-backend/pkg/gai/loop"
+	"agent-backend/pkg/gai/memory"
 )
 
 type fakeModel struct {
@@ -73,14 +74,18 @@ func TestFollowUpAppendsMessagesAndBuildsPrompt(t *testing.T) {
 		t.Fatalf("expected message, got empty string")
 	}
 
-	if len(agent.Messages) != 2 {
-		t.Fatalf("expected 2 messages, got %d", len(agent.Messages))
+	messages, err := agent.MemorySystem.GetMessages(0)
+	if err != nil {
+		t.Fatalf("GetMessages returned error: %v", err)
 	}
-	if agent.Messages[0].Role != loop.RoleUser || agent.Messages[0].Text != "hello" {
-		t.Fatalf("unexpected first message: %+v", agent.Messages[0])
+	if len(messages) != 2 {
+		t.Fatalf("expected 2 memory messages, got %d", len(messages))
 	}
-	if agent.Messages[1].Role != loop.RoleAssistant || agent.Messages[1].Text != "ok" {
-		t.Fatalf("unexpected second message: %+v", agent.Messages[1])
+	if messages[0].Role != memory.RoleUser || messages[0].Content != "hello" {
+		t.Fatalf("unexpected first message: %+v", messages[0])
+	}
+	if messages[1].Role != memory.RoleAssistant || messages[1].Content != "ok" {
+		t.Fatalf("unexpected second message: %+v", messages[1])
 	}
 
 	if !strings.Contains(model.lastReq.SystemPrompt, "system prompt") {
@@ -163,11 +168,15 @@ func TestFollowUpReturnsUnknownToolErrorInTranscript(t *testing.T) {
 	if !strings.Contains(msg, "tool not found: missing") {
 		t.Fatalf("expected unknown tool text in response, got %q", msg)
 	}
-	if len(agent.Messages) != 3 {
-		t.Fatalf("expected user, assistant, tool messages; got %d", len(agent.Messages))
+	messages, getErr := agent.MemorySystem.GetMessages(0)
+	if getErr != nil {
+		t.Fatalf("GetMessages returned error: %v", getErr)
 	}
-	if agent.Messages[2].Role != loop.RoleTool {
-		t.Fatalf("expected tool message role, got %v", agent.Messages[2].Role)
+	if len(messages) != 3 {
+		t.Fatalf("expected user, assistant, tool messages; got %d", len(messages))
+	}
+	if messages[2].Role != memory.RoleTool {
+		t.Fatalf("expected tool message role, got %v", messages[2].Role)
 	}
 }
 
@@ -385,7 +394,7 @@ func TestDecodeToolArgsValidation(t *testing.T) {
 	}
 }
 
-func TestAgentRetainsMaxMessages(t *testing.T) {
+func TestAgentStoresMessagesInMemory(t *testing.T) {
 	model := &fakeModel{}
 	agent := mustNewAgent(t, model, nil, "system")
 	agent.MaxMessages = 3
@@ -396,7 +405,11 @@ func TestAgentRetainsMaxMessages(t *testing.T) {
 		}
 	}
 
-	if len(agent.Messages) != 3 {
-		t.Fatalf("expected capped message length 3, got %d", len(agent.Messages))
+	messages, err := agent.MemorySystem.GetMessages(0)
+	if err != nil {
+		t.Fatalf("GetMessages returned error: %v", err)
+	}
+	if len(messages) != 6 {
+		t.Fatalf("expected 6 messages in memory, got %d", len(messages))
 	}
 }
