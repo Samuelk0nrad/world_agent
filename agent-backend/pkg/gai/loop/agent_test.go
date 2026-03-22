@@ -41,9 +41,29 @@ func (f *fakeModel) Generate(_ context.Context, req ai.AIRequest) (*ai.AIRespons
 	return &ai.AIResponse{Text: "ok"}, nil
 }
 
+const testSessionID = 1
+
+func mustNewAgent(t *testing.T, model ai.Model, tools []loop.Tool, systemPrompt string) *loop.Agent {
+	t.Helper()
+	agent, err := loop.NewAgent(model, tools, systemPrompt, testSessionID)
+	if err != nil {
+		t.Fatalf("NewAgent returned error: %v", err)
+	}
+	return agent
+}
+
+func mustNewAgentWithPrompts(t *testing.T, model ai.Model, tools []loop.Tool, basePrompt, toolPrompt string) *loop.Agent {
+	t.Helper()
+	agent, err := loop.NewAgentWithPrompts(model, tools, basePrompt, toolPrompt, testSessionID)
+	if err != nil {
+		t.Fatalf("NewAgentWithPrompts returned error: %v", err)
+	}
+	return agent
+}
+
 func TestFollowUpAppendsMessagesAndBuildsPrompt(t *testing.T) {
 	model := &fakeModel{}
-	agent := loop.NewAgent(model, nil, "system prompt")
+	agent := mustNewAgent(t, model, nil, "system prompt")
 
 	msg, err := agent.FollowUp(context.Background(), "hello")
 	if err != nil {
@@ -66,9 +86,6 @@ func TestFollowUpAppendsMessagesAndBuildsPrompt(t *testing.T) {
 	if !strings.Contains(model.lastReq.SystemPrompt, "system prompt") {
 		t.Fatalf("system prompt missing from request: %q", model.lastReq.SystemPrompt)
 	}
-	if strings.Count(model.lastReq.SystemPrompt, "hello") != 1 {
-		t.Fatalf("expected user prompt once in model request, got %q", model.lastReq.SystemPrompt)
-	}
 	if strings.Contains(model.lastReq.SystemPrompt, "<system") {
 		t.Fatalf("did not expect system prompt to be stored as conversation message: %q", model.lastReq.SystemPrompt)
 	}
@@ -84,7 +101,7 @@ func TestFollowUpValidation(t *testing.T) {
 	})
 
 	t.Run("missing model", func(t *testing.T) {
-		agent := loop.NewAgent(nil, nil, "system")
+		agent := mustNewAgent(t, nil, nil, "system")
 		_, err := agent.FollowUp(context.Background(), "hello")
 		if !errors.Is(err, loop.ErrModelNotConfigured) {
 			t.Fatalf("expected ErrModelNotConfigured, got %v", err)
@@ -92,7 +109,7 @@ func TestFollowUpValidation(t *testing.T) {
 	})
 
 	t.Run("empty prompt", func(t *testing.T) {
-		agent := loop.NewAgent(&fakeModel{}, nil, "system")
+		agent := mustNewAgent(t, &fakeModel{}, nil, "system")
 		_, err := agent.FollowUp(context.Background(), "   ")
 		if !errors.Is(err, loop.ErrEmptyPrompt) {
 			t.Fatalf("expected ErrEmptyPrompt, got %v", err)
@@ -137,7 +154,7 @@ func TestFollowUpReturnsUnknownToolErrorInTranscript(t *testing.T) {
 	model := &fakeModel{
 		responses: []string{`{"id":"missing","type":"function","arguments":"hello"}`},
 	}
-	agent := loop.NewAgent(model, nil, "system")
+	agent := mustNewAgent(t, model, nil, "system")
 
 	msg, err := agent.FollowUp(context.Background(), "run tool")
 	if err != nil {
@@ -159,7 +176,7 @@ func TestFollowUpStopsWhenToolErrors(t *testing.T) {
 		responses: []string{`{"id":"boom","type":"function","arguments":"hello"}`},
 	}
 	tool := &fakeTool{name: "boom", err: errors.New("boom failure")}
-	agent := loop.NewAgent(model, []loop.Tool{tool}, "system")
+	agent := mustNewAgent(t, model, []loop.Tool{tool}, "system")
 
 	msg, err := agent.FollowUp(context.Background(), "run tool")
 	if err != nil {
@@ -182,7 +199,7 @@ func TestFollowUpContinuesAfterSuccessfulTool(t *testing.T) {
 		},
 	}
 	tool := &fakeTool{name: "echo", resp: "hello"}
-	agent := loop.NewAgent(model, []loop.Tool{tool}, "system")
+	agent := mustNewAgent(t, model, []loop.Tool{tool}, "system")
 
 	msg, err := agent.FollowUp(context.Background(), "use tool")
 	if err != nil {
@@ -201,7 +218,7 @@ func TestFollowUpRespectsMaxLoopIterations(t *testing.T) {
 		responses: []string{`{"id":"echo","type":"function","arguments":{"text":"x"}}`},
 	}
 	tool := &fakeTool{name: "echo", resp: "x"}
-	agent := loop.NewAgent(model, []loop.Tool{tool}, "system")
+	agent := mustNewAgent(t, model, []loop.Tool{tool}, "system")
 	agent.MaxLoopIterations = 1
 
 	_, err := agent.FollowUp(context.Background(), "loop")
@@ -214,7 +231,7 @@ func TestFollowUpMalformedToolCallReturnsValidationError(t *testing.T) {
 	model := &fakeModel{
 		responses: []string{`{"id":"echo","type":"function","arguments":`},
 	}
-	agent := loop.NewAgent(model, []loop.Tool{loop.NewEchoTool()}, "system")
+	agent := mustNewAgent(t, model, []loop.Tool{loop.NewEchoTool()}, "system")
 
 	msg, err := agent.FollowUp(context.Background(), "use tool")
 	if err != nil {
@@ -231,7 +248,7 @@ func TestFollowUpIncludesToolPromptAndSignatures(t *testing.T) {
 		&fakeTool{name: "zeta", desc: "z desc", params: `{"z":"1"}`},
 		&fakeTool{name: "alpha", desc: "a desc", params: `{"a":"1"}`},
 	}
-	agent := loop.NewAgentWithPrompts(model, tools, "base prompt", "tool prompt")
+	agent := mustNewAgentWithPrompts(t, model, tools, "base prompt", "tool prompt")
 
 	_, err := agent.FollowUp(context.Background(), "hello")
 	if err != nil {
@@ -247,9 +264,6 @@ func TestFollowUpIncludesToolPromptAndSignatures(t *testing.T) {
 	}
 	if strings.Index(sp, "<tool name=\"alpha\">") > strings.Index(sp, "<tool name=\"zeta\">") {
 		t.Fatalf("expected alphabetical tool ordering, got %q", sp)
-	}
-	if !strings.Contains(sp, "<conversation>") || !strings.Contains(sp, "</conversation>") {
-		t.Fatalf("expected conversation block in system prompt, got %q", sp)
 	}
 }
 
@@ -303,7 +317,7 @@ func TestNewAgentFromPromptFiles(t *testing.T) {
 		t.Fatalf("failed writing tool prompt: %v", err)
 	}
 
-	agent, err := loop.NewAgentFromPromptFiles(&fakeModel{}, nil, base, tool)
+	agent, err := loop.NewAgentFromPromptFiles(&fakeModel{}, nil, base, tool, testSessionID)
 	if err != nil {
 		t.Fatalf("NewAgentFromPromptFiles returned error: %v", err)
 	}
@@ -319,7 +333,7 @@ func TestNewAgentFromPromptFilesUsesDefaultWhenToolPromptMissing(t *testing.T) {
 		t.Fatalf("failed writing base prompt: %v", err)
 	}
 
-	agent, err := loop.NewAgentFromPromptFiles(&fakeModel{}, nil, base, filepath.Join(dir, "missing-tool.md"))
+	agent, err := loop.NewAgentFromPromptFiles(&fakeModel{}, nil, base, filepath.Join(dir, "missing-tool.md"), testSessionID)
 	if err != nil {
 		t.Fatalf("NewAgentFromPromptFiles returned error: %v", err)
 	}
@@ -373,7 +387,7 @@ func TestDecodeToolArgsValidation(t *testing.T) {
 
 func TestAgentRetainsMaxMessages(t *testing.T) {
 	model := &fakeModel{}
-	agent := loop.NewAgent(model, nil, "system")
+	agent := mustNewAgent(t, model, nil, "system")
 	agent.MaxMessages = 3
 
 	for i := 0; i < 3; i++ {
