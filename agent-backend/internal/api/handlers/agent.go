@@ -24,7 +24,7 @@ func NewAgentHandler(env *config.Env) *AgentHandler {
 	tools := []loop.Tool{
 		loop.NewEchoTool(),
 	}
-	agent, err := loop.NewAgentFromPromptFiles(model, tools, env.PromptPath+"/system.md", env.PromptPath+"/toolCall.md")
+	agent, err := loop.NewAgentFromPromptFiles(model, tools, env.PromptPath+"/system.md", env.PromptPath+"/toolCall.md", 0)
 	if err != nil {
 		return &AgentHandler{initErr: err}
 	}

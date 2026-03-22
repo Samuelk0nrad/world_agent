@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"agent-backend/pkg/gai/ai"
+	"agent-backend/pkg/gai/memory"
 )
 
 const (
@@ -29,9 +30,14 @@ type Agent struct {
 	ToolSystemPrompt  string
 	MaxLoopIterations int
 	MaxMessages       int
+	MemorySystem      memory.Memory
 }
 
-func NewAgent(model ai.Model, tools []Tool, systemPrompt string) *Agent {
+func NewAgent(model ai.Model, tools []Tool, systemPrompt string, sessionID int) (*Agent, error) {
+	m, err := memory.NewMemory(sessionID)
+	if err != nil {
+		return nil, err
+	}
 	agent := &Agent{
 		Model:             model,
 		Tools:             tools,
@@ -39,20 +45,24 @@ func NewAgent(model ai.Model, tools []Tool, systemPrompt string) *Agent {
 		ToolSystemPrompt:  defaultToolSystemPrompt,
 		MaxLoopIterations: defaultMaxLoopIterations,
 		MaxMessages:       defaultMaxMessages,
+		MemorySystem:      m,
 	}
 
-	return agent
+	return agent, nil
 }
 
-func NewAgentWithPrompts(model ai.Model, tools []Tool, baseSystemPrompt, toolSystemPrompt string) *Agent {
-	agent := NewAgent(model, tools, baseSystemPrompt)
+func NewAgentWithPrompts(model ai.Model, tools []Tool, baseSystemPrompt, toolSystemPrompt string, sessionID int) (*Agent, error) {
+	agent, err := NewAgent(model, tools, baseSystemPrompt, sessionID)
+	if err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(toolSystemPrompt) != "" {
 		agent.ToolSystemPrompt = toolSystemPrompt
 	}
-	return agent
+	return agent, nil
 }
 
-func NewAgentFromPromptFiles(model ai.Model, tools []Tool, basePromptPath, toolPromptPath string) (*Agent, error) {
+func NewAgentFromPromptFiles(model ai.Model, tools []Tool, basePromptPath, toolPromptPath string, sessionID int) (*Agent, error) {
 	basePrompt, err := LoadPromptFromFile(basePromptPath)
 	if err != nil {
 		return nil, err
@@ -61,7 +71,7 @@ func NewAgentFromPromptFiles(model ai.Model, tools []Tool, basePromptPath, toolP
 	if err != nil {
 		return nil, err
 	}
-	return NewAgentWithPrompts(model, tools, basePrompt, toolPrompt), nil
+	return NewAgentWithPrompts(model, tools, basePrompt, toolPrompt, sessionID)
 }
 
 func (a *Agent) FollowUp(ctx context.Context, prompt string) (string, error) {
@@ -96,7 +106,9 @@ func (a *Agent) Loop(ctx context.Context, message Message, response *strings.Bui
 	a.addMessage(message)
 
 	for i := 0; i < a.MaxLoopIterations; i++ {
-		request := ai.AIRequest{SystemPrompt: buildSystemPrompt(a.BaseSystemPrompt, a.ToolSystemPrompt, a.Tools, a.Messages)}
+		request := ai.AIRequest{
+			SystemPrompt: buildSystemPrompt(a.BaseSystemPrompt, a.ToolSystemPrompt, a.Tools),
+		}
 		res, err := a.Model.Generate(ctx, request)
 		if err != nil {
 			return err
@@ -154,7 +166,7 @@ func (a *Agent) addMessage(newMessage Message) {
 	}
 }
 
-func buildSystemPrompt(baseSystemPrompt, toolSystemPrompt string, tools []Tool, messages []Message) string {
+func buildSystemPrompt(baseSystemPrompt, toolSystemPrompt string, tools []Tool) string {
 	var builder strings.Builder
 
 	if strings.TrimSpace(baseSystemPrompt) != "" {

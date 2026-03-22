@@ -15,6 +15,7 @@ func (m *MemorySystem) AddMessage(content string, role Role) error {
 	_, err := m.Service.AddMessage(content, role, m.Session.ID)
 	return err
 }
+
 func (m *MemorySystem) GetMessages(limit int) ([]Message, error) {
 	messages, err := m.Service.GetMessages(m.SessionID())
 	if err != nil {
@@ -31,3 +32,4 @@ func (m *MemorySystem) GetMessages(limit int) ([]Message, error) {
 func (m *MemorySystem) EnrichPrompt(prompt string) (string, error) {
 	return m.Service.EnrichPrompt(prompt, m.SessionID())
 }
+

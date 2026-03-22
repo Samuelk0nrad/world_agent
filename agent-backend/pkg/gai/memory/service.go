@@ -23,7 +23,6 @@ func (m *MemoryService) EnrichPrompt(prompt string, sessionID string) (string, e
 	}
 
 	var builder strings.Builder
-	builder.WriteString(prompt)
 
 	builder.WriteString("<conversation>")
 	RenderMessages(messages, &builder)
