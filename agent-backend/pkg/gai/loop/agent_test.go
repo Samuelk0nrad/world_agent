@@ -26,6 +26,10 @@ func (f *fakeModel) Name() string {
 	return "fake"
 }
 
+func (f *fakeModel) Close() error {
+	return nil
+}
+
 func (f *fakeModel) Generate(_ context.Context, req ai.AIRequest) (*ai.AIResponse, error) {
 	f.lastReq = req
 	f.callCount++
