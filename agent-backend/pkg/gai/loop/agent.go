@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 
 	"agent-backend/pkg/gai/ai"
@@ -172,29 +171,6 @@ func buildSystemPrompt(baseSystemPrompt, toolSystemPrompt string, tools []Tool, 
 		builder.WriteString("<tools>\n")
 		builder.WriteString(renderToolSignatures(tools))
 		builder.WriteString("\n</tools>")
-	}
-
-	builder.WriteString("<conversation>")
-	builder.WriteString(renderMessages(messages))
-	builder.WriteString("</conversation>")
-
-	return builder.String()
-}
-
-func renderMessages(messages []Message) string {
-	var builder strings.Builder
-
-	for i, m := range messages {
-		builder.WriteString("<")
-		builder.WriteString(string(m.Role))
-		builder.WriteString(" key=")
-		builder.WriteString(strconv.Itoa(i))
-		builder.WriteString(">\n")
-		builder.WriteString(m.Text)
-		builder.WriteString("\n")
-		builder.WriteString("</")
-		builder.WriteString(string(m.Role))
-		builder.WriteString(">")
 	}
 
 	return builder.String()
