@@ -62,6 +62,19 @@ func mustNewAgentWithPrompts(t *testing.T, model ai.Model, tools []loop.Tool, ba
 	return agent
 }
 
+func mustNewAgentWithMemory(t *testing.T, model ai.Model, tools []loop.Tool, systemPrompt string) *loop.Agent {
+	t.Helper()
+	memorySystem, err := memory.NewMemory(testSessionID)
+	if err != nil {
+		t.Fatalf("NewMemory returned error: %v", err)
+	}
+	agent, err := loop.NewAgentWithMemory(model, tools, systemPrompt, memorySystem)
+	if err != nil {
+		t.Fatalf("NewAgentWithMemory returned error: %v", err)
+	}
+	return agent
+}
+
 func TestFollowUpAppendsMessagesAndBuildsPrompt(t *testing.T) {
 	model := &fakeModel{}
 	agent := mustNewAgent(t, model, nil, "system prompt")
@@ -91,6 +104,12 @@ func TestFollowUpAppendsMessagesAndBuildsPrompt(t *testing.T) {
 	if !strings.Contains(model.lastReq.SystemPrompt, "system prompt") {
 		t.Fatalf("system prompt missing from request: %q", model.lastReq.SystemPrompt)
 	}
+	if !strings.Contains(model.lastReq.Context, "<conversation>") {
+		t.Fatalf("expected conversation context in request, got %q", model.lastReq.Context)
+	}
+	if !strings.Contains(model.lastReq.Context, "hello") {
+		t.Fatalf("expected user message in context, got %q", model.lastReq.Context)
+	}
 	if strings.Contains(model.lastReq.SystemPrompt, "<system") {
 		t.Fatalf("did not expect system prompt to be stored as conversation message: %q", model.lastReq.SystemPrompt)
 	}
@@ -118,6 +137,16 @@ func TestFollowUpValidation(t *testing.T) {
 		_, err := agent.FollowUp(context.Background(), "   ")
 		if !errors.Is(err, loop.ErrEmptyPrompt) {
 			t.Fatalf("expected ErrEmptyPrompt, got %v", err)
+		}
+	})
+
+	t.Run("missing memory", func(t *testing.T) {
+		agent, err := loop.NewAgentWithMemory(&fakeModel{}, nil, "system", nil)
+		if !errors.Is(err, loop.ErrMemoryNotConfigured) {
+			t.Fatalf("expected ErrMemoryNotConfigured, got %v", err)
+		}
+		if agent != nil {
+			t.Fatalf("expected nil agent when memory is missing")
 		}
 	})
 }
@@ -162,8 +191,8 @@ func TestFollowUpReturnsUnknownToolErrorInTranscript(t *testing.T) {
 	agent := mustNewAgent(t, model, nil, "system")
 
 	msg, err := agent.FollowUp(context.Background(), "run tool")
-	if err != nil {
-		t.Fatalf("FollowUp returned unexpected error: %v", err)
+	if !errors.Is(err, loop.ErrToolNotFound) {
+		t.Fatalf("expected ErrToolNotFound, got %v", err)
 	}
 	if !strings.Contains(msg, "tool not found: missing") {
 		t.Fatalf("expected unknown tool text in response, got %q", msg)
@@ -188,8 +217,8 @@ func TestFollowUpStopsWhenToolErrors(t *testing.T) {
 	agent := mustNewAgent(t, model, []loop.Tool{tool}, "system")
 
 	msg, err := agent.FollowUp(context.Background(), "run tool")
-	if err != nil {
-		t.Fatalf("FollowUp returned unexpected error: %v", err)
+	if err == nil || err.Error() != "boom failure" {
+		t.Fatalf("expected boom failure, got %v", err)
 	}
 	if !strings.Contains(msg, "boom failure") {
 		t.Fatalf("expected tool error in transcript, got %q", msg)
@@ -243,10 +272,10 @@ func TestFollowUpMalformedToolCallReturnsValidationError(t *testing.T) {
 	agent := mustNewAgent(t, model, []loop.Tool{loop.NewEchoTool()}, "system")
 
 	msg, err := agent.FollowUp(context.Background(), "use tool")
-	if err != nil {
-		t.Fatalf("FollowUp returned unexpected error: %v", err)
+	if !errors.Is(err, loop.ErrToolCallMalformed) {
+		t.Fatalf("expected ErrToolCallMalformed, got %v", err)
 	}
-	if !strings.Contains(msg, loop.ErrToolCallType.Error()) {
+	if !strings.Contains(msg, loop.ErrToolCallMalformed.Error()) {
 		t.Fatalf("expected tool-call validation message, got %q", msg)
 	}
 }
@@ -396,7 +425,7 @@ func TestDecodeToolArgsValidation(t *testing.T) {
 
 func TestAgentStoresMessagesInMemory(t *testing.T) {
 	model := &fakeModel{}
-	agent := mustNewAgent(t, model, nil, "system")
+	agent := mustNewAgentWithMemory(t, model, nil, "system")
 	agent.MaxMessages = 3
 
 	for i := 0; i < 3; i++ {

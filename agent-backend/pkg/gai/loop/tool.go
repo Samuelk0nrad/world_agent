@@ -44,7 +44,7 @@ func detectToolCall(s string) (*ToolRequest, bool) {
 
 	var tr ToolRequest
 	if err := json.Unmarshal([]byte(payload), &tr); err != nil {
-		return &ToolRequest{}, true
+		return nil, true
 	}
 	return &tr, true
 }

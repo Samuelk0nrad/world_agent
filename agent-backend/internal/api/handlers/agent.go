@@ -24,7 +24,7 @@ func NewAgentHandler(env *config.Env) *AgentHandler {
 	tools := []loop.Tool{
 		loop.NewEchoTool(),
 	}
-	agent, err := loop.NewAgentFromPromptFiles(model, tools, env.PromptPath+"/system.md", env.PromptPath+"/toolCall.md", 0)
+	agent, err := loop.NewAgentFromPromptFiles(model, tools, env.PromptPath+"/system.md", env.PromptPath+"/toolCall.md", 1)
 	if err != nil {
 		return &AgentHandler{initErr: err}
 	}
@@ -58,9 +58,15 @@ func (h *AgentHandler) PostAgent(c *gin.Context) {
 		return
 	}
 
+	messages, err := h.agent.MemorySystem.GetMessages(0)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"err": err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"prompt":   req.Prompt,
 		"message":  message,
-		"messages": h.agent.Messages,
+		"messages": messages,
 	})
 }

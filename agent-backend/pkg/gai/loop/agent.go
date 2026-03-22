@@ -24,7 +24,6 @@ Rules:
 type Agent struct {
 	Model             ai.Model
 	Tools             []Tool
-	Messages          []memory.Message
 	BaseSystemPrompt  string
 	ToolSystemPrompt  string
 	MaxLoopIterations int
@@ -37,6 +36,13 @@ func NewAgent(model ai.Model, tools []Tool, systemPrompt string, sessionID int) 
 	if err != nil {
 		return nil, err
 	}
+	return NewAgentWithMemory(model, tools, systemPrompt, m)
+}
+
+func NewAgentWithMemory(model ai.Model, tools []Tool, systemPrompt string, memorySystem memory.Memory) (*Agent, error) {
+	if memorySystem == nil {
+		return nil, ErrMemoryNotConfigured
+	}
 	agent := &Agent{
 		Model:             model,
 		Tools:             tools,
@@ -44,14 +50,22 @@ func NewAgent(model ai.Model, tools []Tool, systemPrompt string, sessionID int) 
 		ToolSystemPrompt:  defaultToolSystemPrompt,
 		MaxLoopIterations: defaultMaxLoopIterations,
 		MaxMessages:       defaultMaxMessages,
-		MemorySystem:      m,
+		MemorySystem:      memorySystem,
 	}
 
 	return agent, nil
 }
 
 func NewAgentWithPrompts(model ai.Model, tools []Tool, baseSystemPrompt, toolSystemPrompt string, sessionID int) (*Agent, error) {
-	agent, err := NewAgent(model, tools, baseSystemPrompt, sessionID)
+	m, err := memory.NewMemory(sessionID)
+	if err != nil {
+		return nil, err
+	}
+	return NewAgentWithPromptsAndMemory(model, tools, baseSystemPrompt, toolSystemPrompt, m)
+}
+
+func NewAgentWithPromptsAndMemory(model ai.Model, tools []Tool, baseSystemPrompt, toolSystemPrompt string, memorySystem memory.Memory) (*Agent, error) {
+	agent, err := NewAgentWithMemory(model, tools, baseSystemPrompt, memorySystem)
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +76,14 @@ func NewAgentWithPrompts(model ai.Model, tools []Tool, baseSystemPrompt, toolSys
 }
 
 func NewAgentFromPromptFiles(model ai.Model, tools []Tool, basePromptPath, toolPromptPath string, sessionID int) (*Agent, error) {
+	m, err := memory.NewMemory(sessionID)
+	if err != nil {
+		return nil, err
+	}
+	return NewAgentFromPromptFilesWithMemory(model, tools, basePromptPath, toolPromptPath, m)
+}
+
+func NewAgentFromPromptFilesWithMemory(model ai.Model, tools []Tool, basePromptPath, toolPromptPath string, memorySystem memory.Memory) (*Agent, error) {
 	basePrompt, err := LoadPromptFromFile(basePromptPath)
 	if err != nil {
 		return nil, err
@@ -70,7 +92,7 @@ func NewAgentFromPromptFiles(model ai.Model, tools []Tool, basePromptPath, toolP
 	if err != nil {
 		return nil, err
 	}
-	return NewAgentWithPrompts(model, tools, basePrompt, toolPrompt, sessionID)
+	return NewAgentWithPromptsAndMemory(model, tools, basePrompt, toolPrompt, memorySystem)
 }
 
 func (a *Agent) FollowUp(ctx context.Context, prompt string) (string, error) {
@@ -80,6 +102,9 @@ func (a *Agent) FollowUp(ctx context.Context, prompt string) (string, error) {
 	if a.Model == nil {
 		return "", ErrModelNotConfigured
 	}
+	if a.MemorySystem == nil {
+		return "", ErrMemoryNotConfigured
+	}
 	if strings.TrimSpace(prompt) == "" {
 		return "", ErrEmptyPrompt
 	}
@@ -88,7 +113,7 @@ func (a *Agent) FollowUp(ctx context.Context, prompt string) (string, error) {
 	var response strings.Builder
 	err := a.Loop(ctx, userMessage, &response)
 	if err != nil {
-		return "", err
+		return response.String(), err
 	}
 	return response.String(), nil
 }
@@ -96,6 +121,9 @@ func (a *Agent) FollowUp(ctx context.Context, prompt string) (string, error) {
 func (a *Agent) Loop(ctx context.Context, message memory.Message, response *strings.Builder) error {
 	if response == nil {
 		return ErrNilResponseBuilder
+	}
+	if a.MemorySystem == nil {
+		return ErrMemoryNotConfigured
 	}
 
 	if a.MaxLoopIterations <= 0 {
@@ -111,6 +139,11 @@ func (a *Agent) Loop(ctx context.Context, message memory.Message, response *stri
 		request := ai.AIRequest{
 			SystemPrompt: buildSystemPrompt(a.BaseSystemPrompt, a.ToolSystemPrompt, a.Tools),
 		}
+		contextPrompt, err := a.MemorySystem.EnrichPrompt("")
+		if err != nil {
+			return err
+		}
+		request.Context = contextPrompt
 		res, err := a.Model.Generate(ctx, request)
 		if err != nil {
 			return err
@@ -132,6 +165,9 @@ func (a *Agent) Loop(ctx context.Context, message memory.Message, response *stri
 		}
 
 		toolRes, err := callTool(toolReq, a.Tools)
+		if toolReq == nil {
+			err = ErrToolCallMalformed
+		}
 		toolResultText := ""
 		if err != nil {
 			toolResultText = err.Error()
@@ -139,19 +175,29 @@ func (a *Agent) Loop(ctx context.Context, message memory.Message, response *stri
 			toolResultText = toolRes.Text
 		}
 
+		toolID := ""
+		toolArgs := ""
+		if toolReq != nil {
+			toolID = toolReq.ID
+			toolArgs = toolReq.ArgsString()
+		}
+
 		response.WriteString("\n\n")
 		response.WriteString("Tool ")
-		response.WriteString(toolReq.ID)
+		response.WriteString(toolID)
 		response.WriteString(" ")
-		response.WriteString(toolReq.ArgsString())
+		response.WriteString(toolArgs)
 		response.WriteString(":\n")
 		response.WriteString("\t")
 		response.WriteString(toolResultText)
 
-		a.MemorySystem.AddMessage(toolResultText, memory.RoleTool)
+		_, addErr := a.MemorySystem.AddMessage(toolResultText, memory.RoleTool)
+		if addErr != nil {
+			return addErr
+		}
 
 		if err != nil {
-			return nil
+			return err
 		}
 	}
 

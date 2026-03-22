@@ -2,6 +2,7 @@ package gemini
 
 import (
 	"context"
+	"sync"
 
 	"agent-backend/pkg/gai/ai"
 
@@ -11,6 +12,8 @@ import (
 type Model struct {
 	name   string
 	client *Provider
+	mu     sync.Mutex
+	api    *genai.Client
 }
 
 func (m *Model) Name() string {
@@ -18,9 +21,7 @@ func (m *Model) Name() string {
 }
 
 func (m *Model) Generate(ctx context.Context, req ai.AIRequest) (*ai.AIResponse, error) {
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey: m.client.apiKey,
-	})
+	client, err := m.getClient(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -40,4 +41,23 @@ func (m *Model) Generate(ctx context.Context, req ai.AIRequest) (*ai.AIResponse,
 		InputTokens:  int(result.UsageMetadata.TotalTokenCount),
 		OutputTokens: -1,
 	}, nil
+}
+
+func (m *Model) getClient(ctx context.Context) (*genai.Client, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.api != nil {
+		return m.api, nil
+	}
+
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey: m.client.apiKey,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	m.api = client
+	return m.api, nil
 }
