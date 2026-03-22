@@ -11,13 +11,12 @@ func (m *MemorySystem) SessionID() string {
 	return strconv.Itoa(m.Session.ID)
 }
 
-func (m *MemorySystem) AddMessage(content string, role Role) error {
-	_, err := m.Service.AddMessage(content, role, m.Session.ID)
-	return err
+func (m *MemorySystem) AddMessage(content string, role Role) (Message, error) {
+	return m.Service.AddMessage(content, role, m.Session.ID)
 }
 
 func (m *MemorySystem) GetMessages(limit int) ([]Message, error) {
-	messages, err := m.Service.GetMessages(m.SessionID())
+	messages, err := m.Service.GetMessages(m.Session.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -30,6 +29,5 @@ func (m *MemorySystem) GetMessages(limit int) ([]Message, error) {
 }
 
 func (m *MemorySystem) EnrichPrompt(prompt string) (string, error) {
-	return m.Service.EnrichPrompt(prompt, m.SessionID())
+	return m.Service.EnrichPrompt(m.Session.ID)
 }
-

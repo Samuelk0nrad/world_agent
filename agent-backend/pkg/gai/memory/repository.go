@@ -1,26 +1,26 @@
 package memory
 
 import (
-	"strconv"
+	"sync"
 	"time"
 )
 
-type Repository struct{}
-
-var (
-	counter  int = 0
+type Repository struct {
+	mu       sync.RWMutex
+	counter  int
 	messages []Message
-)
+}
 
-func (r *Repository) GetMessagesBySession(sessionID string) ([]Message, error) {
-	id, err := strconv.Atoi(sessionID)
-	if err != nil {
-		return nil, ErrSessionIDInValide
+func (r *Repository) GetMessagesBySession(sessionID int) ([]Message, error) {
+	if sessionID <= 0 {
+		return nil, ErrSessionIDInvalid
 	}
 
 	var res []Message
-	for _, message := range messages {
-		if message.SessionID == id {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, message := range r.messages {
+		if message.SessionID == sessionID {
 			res = append(res, message)
 		}
 	}
@@ -28,16 +28,23 @@ func (r *Repository) GetMessagesBySession(sessionID string) ([]Message, error) {
 	return res, nil
 }
 
-func (r *Repository) AddMessages(content string, role Role, sessionID int) (Message, error) {
+func (r *Repository) AddMessage(content string, role Role, sessionID int) (Message, error) {
+	if sessionID <= 0 {
+		return Message{}, ErrSessionIDInvalid
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	message := Message{
-		ID:        counter,
+		ID:        r.counter,
 		SessionID: sessionID,
 		CreatedAt: time.Now(),
 		Content:   content,
 		Role:      role,
 	}
-	counter++
+	r.counter++
 
-	messages = append(messages, message)
+	r.messages = append(r.messages, message)
 	return message, nil
 }

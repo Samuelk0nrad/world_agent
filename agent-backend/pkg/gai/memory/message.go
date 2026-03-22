@@ -23,6 +23,15 @@ type Message struct {
 	Role      Role
 }
 
+func IsValidRole(role Role) bool {
+	switch role {
+	case RoleSystem, RoleUser, RoleAssistant, RoleTool:
+		return true
+	default:
+		return false
+	}
+}
+
 func RenderMessages(messages []Message, builder *strings.Builder) {
 	for i, m := range messages {
 		builder.WriteString("<")

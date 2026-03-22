@@ -3,7 +3,6 @@ package loop
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	"agent-backend/pkg/gai/ai"
@@ -25,7 +24,7 @@ Rules:
 type Agent struct {
 	Model             ai.Model
 	Tools             []Tool
-	Messages          []Message
+	Messages          []memory.Message
 	BaseSystemPrompt  string
 	ToolSystemPrompt  string
 	MaxLoopIterations int
@@ -85,7 +84,7 @@ func (a *Agent) FollowUp(ctx context.Context, prompt string) (string, error) {
 		return "", ErrEmptyPrompt
 	}
 
-	userMessage := Message{Text: prompt, Role: RoleUser}
+	userMessage := memory.Message{Content: prompt, Role: memory.RoleUser}
 	var response strings.Builder
 	err := a.Loop(ctx, userMessage, &response)
 	if err != nil {
@@ -94,7 +93,7 @@ func (a *Agent) FollowUp(ctx context.Context, prompt string) (string, error) {
 	return response.String(), nil
 }
 
-func (a *Agent) Loop(ctx context.Context, message Message, response *strings.Builder) error {
+func (a *Agent) Loop(ctx context.Context, message memory.Message, response *strings.Builder) error {
 	if response == nil {
 		return ErrNilResponseBuilder
 	}
@@ -103,7 +102,10 @@ func (a *Agent) Loop(ctx context.Context, message Message, response *strings.Bui
 		a.MaxLoopIterations = defaultMaxLoopIterations
 	}
 
-	a.addMessage(message)
+	_, err := a.MemorySystem.AddMessage(message.Content, message.Role)
+	if err != nil {
+		return err
+	}
 
 	for i := 0; i < a.MaxLoopIterations; i++ {
 		request := ai.AIRequest{
@@ -114,13 +116,15 @@ func (a *Agent) Loop(ctx context.Context, message Message, response *strings.Bui
 			return err
 		}
 
-		assistantMessage := Message{Text: res.Text, Role: RoleAssistant}
-		a.addMessage(assistantMessage)
+		message, err := a.MemorySystem.AddMessage(res.Text, memory.RoleAssistant)
+		if err != nil {
+			return err
+		}
 
 		response.WriteString("\n\n")
 		response.WriteString("Agent: \n")
 		response.WriteString("\t")
-		response.WriteString(assistantMessage.Text)
+		response.WriteString(message.Content)
 
 		toolReq, tCall := detectToolCall(res.Text)
 		if !tCall {
@@ -144,8 +148,7 @@ func (a *Agent) Loop(ctx context.Context, message Message, response *strings.Bui
 		response.WriteString("\t")
 		response.WriteString(toolResultText)
 
-		toolMessage := Message{Text: toolResultText, Role: RoleTool}
-		a.addMessage(toolMessage)
+		a.MemorySystem.AddMessage(toolResultText, memory.RoleTool)
 
 		if err != nil {
 			return nil
@@ -153,17 +156,6 @@ func (a *Agent) Loop(ctx context.Context, message Message, response *strings.Bui
 	}
 
 	return fmt.Errorf("%w: limit=%d", ErrMaxIterations, a.MaxLoopIterations)
-}
-
-func (a *Agent) addMessage(newMessage Message) {
-	a.Messages = append(a.Messages, newMessage)
-	if a.MaxMessages <= 0 {
-		return
-	}
-	if len(a.Messages) > a.MaxMessages {
-		start := len(a.Messages) - a.MaxMessages
-		a.Messages = append([]Message(nil), a.Messages[start:]...)
-	}
 }
 
 func buildSystemPrompt(baseSystemPrompt, toolSystemPrompt string, tools []Tool) string {
@@ -181,40 +173,9 @@ func buildSystemPrompt(baseSystemPrompt, toolSystemPrompt string, tools []Tool) 
 		}
 		builder.WriteString(prompt)
 		builder.WriteString("<tools>\n")
-		builder.WriteString(renderToolSignatures(tools))
+		builder.WriteString(RenderToolSignatures(tools))
 		builder.WriteString("\n</tools>")
 	}
 
-	return builder.String()
-}
-
-func renderToolSignatures(tools []Tool) string {
-	if len(tools) == 0 {
-		return ""
-	}
-
-	sorted := make([]Tool, 0, len(tools))
-	for _, tool := range tools {
-		if tool != nil {
-			sorted = append(sorted, tool)
-		}
-	}
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].Name() < sorted[j].Name()
-	})
-
-	var builder strings.Builder
-	for _, t := range sorted {
-		builder.WriteString("\n<tool name=\"")
-		builder.WriteString(t.Name())
-		builder.WriteString("\">")
-		builder.WriteString("\n<description>")
-		builder.WriteString(t.Description())
-		builder.WriteString("</description>")
-		builder.WriteString("\n<signature>")
-		builder.WriteString(t.Params())
-		builder.WriteString("</signature>")
-		builder.WriteString("\n</tool>")
-	}
 	return builder.String()
 }

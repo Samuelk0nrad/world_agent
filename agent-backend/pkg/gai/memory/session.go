@@ -1,5 +1,5 @@
 package memory
 
 type Session struct {
-	ID       int
+	ID int
 }

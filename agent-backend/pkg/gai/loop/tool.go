@@ -3,6 +3,7 @@ package loop
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -102,4 +103,35 @@ func DecodeToolArgs[T any](req *ToolRequest, target *T) error {
 		return fmt.Errorf("%w: %v", ErrToolCallMalformed, err)
 	}
 	return nil
+}
+
+func RenderToolSignatures(tools []Tool) string {
+	if len(tools) == 0 {
+		return ""
+	}
+
+	sorted := make([]Tool, 0, len(tools))
+	for _, tool := range tools {
+		if tool != nil {
+			sorted = append(sorted, tool)
+		}
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Name() < sorted[j].Name()
+	})
+
+	var builder strings.Builder
+	for _, t := range sorted {
+		builder.WriteString("\n<tool name=\"")
+		builder.WriteString(t.Name())
+		builder.WriteString("\">")
+		builder.WriteString("\n<description>")
+		builder.WriteString(t.Description())
+		builder.WriteString("</description>")
+		builder.WriteString("\n<signature>")
+		builder.WriteString(t.Params())
+		builder.WriteString("</signature>")
+		builder.WriteString("\n</tool>")
+	}
+	return builder.String()
 }
