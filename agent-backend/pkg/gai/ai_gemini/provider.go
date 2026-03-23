@@ -30,5 +30,5 @@ func (p *Provider) Model(name string) (ai.Model, error) {
 }
 
 func (p *Provider) ListModels() ([]string, error) {
-	return []string{"gemini-3-flash-preview"}, nil
+	return modules, nil
 }

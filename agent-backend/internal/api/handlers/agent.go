@@ -27,7 +27,7 @@ type sessionAgent struct {
 }
 
 func NewAgentHandler(env *config.Env) *AgentHandler {
-	model, err := gemini.New(env.GeminiAPIKey).Model("gemini-3-flash-preview")
+	model, err := gemini.New(env.GeminiAPIKey).Model(gemini.Gemini2_5Flash)
 	if err != nil {
 		return &AgentHandler{initErr: err}
 	}
