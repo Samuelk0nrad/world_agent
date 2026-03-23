@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -33,6 +32,6 @@ func main() {
 
 	err := runtime.Router.Run(":8080")
 	if err != nil {
-		fmt.Print("error accured running the api")
+		log.Fatalf("error occurred running the api: %v", err)
 	}
 }
