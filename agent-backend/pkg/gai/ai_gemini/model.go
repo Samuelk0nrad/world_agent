@@ -46,8 +46,8 @@ func (m *Model) Generate(ctx context.Context, req ai.AIRequest) (*ai.AIResponse,
 
 	return &ai.AIResponse{
 		Text:         result.Text(),
-		InputTokens:  int(result.UsageMetadata.TotalTokenCount),
-		OutputTokens: -1,
+		InputTokens:  int(result.UsageMetadata.PromptTokenCount),
+		OutputTokens: int(result.UsageMetadata.CandidatesTokenCount),
 	}, nil
 }
 
