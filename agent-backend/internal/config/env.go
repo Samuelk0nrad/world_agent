@@ -1,31 +1,34 @@
 package config
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/spf13/viper"
 )
 
-const defaultEnvFile = ".env"
-
-// NewViperFromEnv initializes Viper by always reading .env and enabling
-// environment variable overrides.
-func NewViperFromEnv() (*viper.Viper, error) {
-	cfg := viper.New()
-	cfg.AutomaticEnv()
-	cfg.SetConfigFile(defaultEnvFile)
-	cfg.SetConfigType("env")
-	if err := cfg.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("read config file %q: %w", defaultEnvFile, err)
-	}
-
-	return cfg, nil
+type Env struct {
+	GeminiAPIKey string `mapstructure:"GEMINI_API_KEY"`
+	PromptPath   string `mapstructure:"PROMPT_PATH"`
 }
 
-func MustViper() *viper.Viper {
-	cfg, err := NewViperFromEnv()
-	if err != nil {
-		panic(err)
+func NewEnv(filename string, override bool) *Env {
+	env := Env{}
+
+	viper.SetConfigFile(filename)
+
+	if override {
+		viper.AutomaticEnv()
 	}
-	return cfg
+
+	err := viper.ReadInConfig()
+	if err != nil {
+		log.Fatal("Error reading environment file", err)
+	}
+
+	err = viper.Unmarshal(&env)
+	if err != nil {
+		log.Fatal("Error loading environment file", err)
+	}
+
+	return &env
 }
