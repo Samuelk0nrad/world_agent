@@ -166,9 +166,11 @@ func (a *Agent) Loop(ctx context.Context, message memory.Message, response *stri
 			return nil
 		}
 
-		toolRes, err := callTool(toolReq, a.Tools)
+		var toolRes *ToolResponse
 		if toolReq == nil {
 			err = ErrToolCallMalformed
+		} else {
+			toolRes, err = callTool(toolReq, a.Tools)
 		}
 		toolResultText := ""
 		if err != nil {
