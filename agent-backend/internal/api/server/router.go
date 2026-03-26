@@ -1,6 +1,8 @@
 package server
 
 import (
+	"errors"
+
 	"agent-backend/internal/api/handlers"
 	"agent-backend/internal/config"
 
@@ -38,15 +40,16 @@ func (r *RouterRuntime) Close() error {
 	if r == nil {
 		return nil
 	}
+	var errs []error
 	if r.agentHandler != nil {
 		if err := r.agentHandler.Close(); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
 	if r.geminiHandler != nil {
 		if err := r.geminiHandler.Close(); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
