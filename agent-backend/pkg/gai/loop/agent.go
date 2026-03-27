@@ -126,8 +126,10 @@ func (a *Agent) Loop(ctx context.Context, message memory.Message, response *stri
 		return ErrMemoryNotConfigured
 	}
 
-	if a.MaxLoopIterations <= 0 {
-		a.MaxLoopIterations = defaultMaxLoopIterations
+	maxIterations := a.MaxLoopIterations
+
+	if maxIterations <= 0 {
+		maxIterations = defaultMaxLoopIterations
 	}
 
 	_, err := a.MemorySystem.AddMessage(message.Content, message.Role)
@@ -135,7 +137,7 @@ func (a *Agent) Loop(ctx context.Context, message memory.Message, response *stri
 		return err
 	}
 
-	for i := 0; i < a.MaxLoopIterations; i++ {
+	for i := 0; i < maxIterations; i++ {
 		request := ai.AIRequest{
 			SystemPrompt: buildSystemPrompt(a.BaseSystemPrompt, a.ToolSystemPrompt, a.Tools),
 		}
@@ -164,9 +166,11 @@ func (a *Agent) Loop(ctx context.Context, message memory.Message, response *stri
 			return nil
 		}
 
-		toolRes, err := callTool(toolReq, a.Tools)
+		var toolRes *ToolResponse
 		if toolReq == nil {
 			err = ErrToolCallMalformed
+		} else {
+			toolRes, err = callTool(toolReq, a.Tools)
 		}
 		toolResultText := ""
 		if err != nil {
@@ -201,7 +205,7 @@ func (a *Agent) Loop(ctx context.Context, message memory.Message, response *stri
 		}
 	}
 
-	return fmt.Errorf("%w: limit=%d", ErrMaxIterations, a.MaxLoopIterations)
+	return fmt.Errorf("%w: limit=%d", ErrMaxIterations, maxIterations)
 }
 
 func buildSystemPrompt(baseSystemPrompt, toolSystemPrompt string, tools []Tool) string {
