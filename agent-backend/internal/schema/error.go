@@ -1,6 +1,6 @@
 package schema
 
 type Error struct {
-	code    string
-	message string
+	Code    string `json:"error_code"`
+	Message string `json:"message"`
 }

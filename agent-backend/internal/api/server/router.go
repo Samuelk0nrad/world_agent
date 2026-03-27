@@ -2,9 +2,11 @@ package server
 
 import (
 	"errors"
+	"log"
 
 	"agent-backend/internal/api/handlers"
 	"agent-backend/internal/config"
+	"agent-backend/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,7 +20,12 @@ func NewRouter(env *config.Env) *RouterRuntime {
 	router := gin.Default()
 
 	healthHandler := handlers.NewHealthHandlers()
-	agentHandler := handlers.NewAgentHandler(env)
+
+	agentService, err := service.NewAgentService(env)
+	if err != nil {
+		log.Fatalf("Failed to initialize agent service: %v", err)
+	}
+	agentHandler := handlers.NewAgentHandler(agentService)
 
 	api := router.Group("/api")
 	{

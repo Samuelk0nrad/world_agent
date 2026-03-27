@@ -1,7 +1,9 @@
 package schema
 
+import "agent-backend/pkg/gai/memory"
+
 type AgentResponse struct {
-	Model   string `json:"model"`
-	Content string `json:"content"`
-	Tokens  int    `json:"tokens"`
+	Prompt   string           `json:"prompt"`
+	Message  string           `json:"message"`
+	Messages []memory.Message `json:"messages"`
 }
