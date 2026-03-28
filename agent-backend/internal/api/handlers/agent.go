@@ -41,6 +41,18 @@ func (h *AgentHandler) PostAgent(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+func (h *AgentHandler) GetSessionHistory(c *gin.Context) {
+	var req schema.GetSessionHistory
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, schema.Error{
+			Code:    "invalid_request",
+			Message: err.Error(),
+		})
+		return
+	}
+	resp, err := h.agentService.
+}
+
 func (h *AgentHandler) Close() error {
 	return h.agentService.Close()
 }

@@ -12,12 +12,7 @@ import (
 	"agent-backend/pkg/gai/loop"
 )
 
-type AgentService interface {
-	ProcessAgentRequest(ctx context.Context, req *schema.AgentRequest) (*schema.AgentResponse, error)
-	Close() error
-}
-
-type agentService struct {
+type AgentService struct {
 	model      ai.Model
 	tools      []loop.Tool
 	promptPath string
@@ -30,13 +25,13 @@ type SessionAgent struct {
 	Mu    sync.Mutex
 }
 
-func NewAgentService(env *config.Env) (AgentService, error) {
+func NewAgentService(env *config.Env) (*AgentService, error) {
 	model, err := gemini.New(env.GeminiAPIKey).Model(gemini.Gemini2_5Flash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize model: %w", err)
 	}
 
-	return &agentService{
+	return &AgentService{
 		model:      model,
 		tools:      []loop.Tool{loop.NewEchoTool()},
 		promptPath: env.PromptPath,
@@ -44,7 +39,7 @@ func NewAgentService(env *config.Env) (AgentService, error) {
 	}, nil
 }
 
-func (s *agentService) ProcessAgentRequest(ctx context.Context, req *schema.AgentRequest) (*schema.AgentResponse, error) {
+func (s *AgentService) ProcessAgentRequest(ctx context.Context, req *schema.AgentRequest) (*schema.AgentResponse, error) {
 	if req.SessionID <= 0 {
 		return nil, fmt.Errorf("sessionId must be a positive integer")
 	}
@@ -74,7 +69,7 @@ func (s *agentService) ProcessAgentRequest(ctx context.Context, req *schema.Agen
 	}, nil
 }
 
-func (s *agentService) getOrCreateSessionAgent(sessionID int) (*SessionAgent, error) {
+func (s *AgentService) getOrCreateSessionAgent(sessionID int) (*SessionAgent, error) {
 	s.sessionsMu.Lock()
 	defer s.sessionsMu.Unlock()
 
@@ -98,7 +93,7 @@ func (s *agentService) getOrCreateSessionAgent(sessionID int) (*SessionAgent, er
 	return created, nil
 }
 
-func (s *agentService) Close() error {
+func (s *AgentService) Close() error {
 	s.sessionsMu.Lock()
 	defer s.sessionsMu.Unlock()
 
