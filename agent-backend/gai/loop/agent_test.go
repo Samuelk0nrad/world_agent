@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"agent-backend/pkg/gai/ai"
-	"agent-backend/pkg/gai/loop"
-	"agent-backend/pkg/gai/memory"
+	"agent-backend/gai/ai"
+	"agent-backend/gai/loop"
+	"agent-backend/gai/memory"
 )
 
 type fakeModel struct {

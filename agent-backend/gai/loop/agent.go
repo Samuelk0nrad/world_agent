@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"agent-backend/pkg/gai/ai"
-	"agent-backend/pkg/gai/memory"
+	"agent-backend/gai/ai"
+	"agent-backend/gai/memory"
 )
 
 const (

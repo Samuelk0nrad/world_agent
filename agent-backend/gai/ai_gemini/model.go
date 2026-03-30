@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"agent-backend/pkg/gai/ai"
+	"agent-backend/gai/ai"
 
 	"google.golang.org/genai"
 )

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"agent-backend/pkg/gai/memory"
+	"agent-backend/gai/memory"
 )
 
 func TestNewMemoryValidation(t *testing.T) {
