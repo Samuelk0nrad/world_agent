@@ -27,7 +27,7 @@ func agentCall(logger *log.Logger, config *config.Env) http.HandlerFunc {
 		Prompt    string `json:"prompt"`
 	}
 	type response struct {
-		Response memory.Message   `json:"response"`
+		Response string           `json:"response"`
 		Messages []memory.Message `json:"messages"`
 	}
 	return handler(func(w http.ResponseWriter, r *http.Request) error {
@@ -36,14 +36,16 @@ func agentCall(logger *log.Logger, config *config.Env) http.HandlerFunc {
 			return NewErrWithStatus(http.StatusBadRequest, err)
 		}
 		sessionId := req.SessionId
+
 		provider := gemini.New(config.GeminiAPIKey)
-		model, err := provider.Model(gemini.Gemini2_5Flash)
+		model, err := provider.Model(gemini.Gemini2_5FlashLite)
 		if err != nil {
 			return NewErrWithStatus(http.StatusInternalServerError, err)
 		}
+
 		var tools []loop.Tool
 		tools = append(tools, loop.NewEchoTool())
-		// agent, err := loop.NewAgent(model, tools, "", sessionId)
+
 		agent, err := loop.NewAgentFromPromptFiles(
 			model,
 			tools,
@@ -54,20 +56,26 @@ func agentCall(logger *log.Logger, config *config.Env) http.HandlerFunc {
 		if err != nil {
 			return err
 		}
-		agent.FollowUp(context.Background(), req.Prompt)
+
+		res, err := agent.FollowUp(context.Background(), req.Prompt)
+		if err != nil {
+			return err
+		}
 
 		messages, err := agent.MemorySystem.GetMessages(10)
 		if err != nil {
 			return err
 		}
 
-		encode(w, r, http.StatusOK, ApiResponse[response]{
+		if err = encode(w, r, http.StatusOK, ApiResponse[response]{
 			Data: &response{
-				Response: messages[len(messages)-1],
+				Response: res,
 				Messages: messages,
 			},
-			Message: "agent call received",
-		})
+			Message: "success",
+		}); err != nil {
+			return nil
+		}
 
 		return nil
 	}, logger)
