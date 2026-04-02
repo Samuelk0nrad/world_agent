@@ -1,7 +1,15 @@
 package main
 
-import "agent-backend/server"
+import (
+	"fmt"
+)
 
 func main() {
-	server.NewRouter()
+	if err := run(); err != nil {
+		fmt.Printf("error running the service: %s", err)
+	}
+}
+
+func run() error {
+	return nil
 }
