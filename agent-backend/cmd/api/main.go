@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"net"
-	"net/http"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"agent-backend/agent"
 	"agent-backend/config"
@@ -16,15 +19,17 @@ func main() {
 }
 
 func run() error {
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
 	config, err := config.NewEnv(".env", true)
 	if err != nil {
 		return err
 	}
-	srv := agent.NewServer(config)
-	httpServer := &http.Server{
-		Addr:    net.JoinHostPort(config.Host, config.Port),
-		Handler: srv,
-	}
-	fmt.Printf("starting listening on %s:%s...\n", config.Host, config.Port)
-	return httpServer.ListenAndServe()
+
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+	logger := log.New(os.Stdout, "agent-backend: ", log.LstdFlags|log.Lmicroseconds)
+
+	srv := agent.New(config, logger)
+	return srv.Start(ctx)
 }
