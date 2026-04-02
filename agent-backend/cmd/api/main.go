@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"agent-backend/agent"
+	"agent-backend/apiservice"
 	"agent-backend/config"
 )
 
@@ -30,6 +30,6 @@ func run() error {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 	logger := log.New(os.Stdout, "agent-backend: ", log.LstdFlags|log.Lmicroseconds)
 
-	srv := agent.New(config, logger)
+	srv := apiservice.New(config, logger)
 	return srv.Start(ctx)
 }
