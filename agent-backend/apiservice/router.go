@@ -12,6 +12,6 @@ func addRoutes(
 	config *config.Env,
 	logger *log.Logger,
 ) {
-	mux.HandleFunc("/healthz", healthz(logger))
-	mux.HandleFunc("/agent", agentRequest)
+	mux.HandleFunc("GET /healthz", healthz(logger))
+	mux.HandleFunc("POST /agent/call", agentCall(logger, config))
 }
