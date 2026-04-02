@@ -2,13 +2,17 @@ package agent
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 )
 
-func healthz(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(map[string]any{
-		"status": "healthy",
-	})
+func healthz(logger *log.Logger) http.HandlerFunc {
+	return handler(func(w http.ResponseWriter, r *http.Request) error {
+		json.NewEncoder(w).Encode(map[string]any{
+			"status": "healthy",
+		})
+		return nil
+	}, logger)
 }
 
 func agentRequest(w http.ResponseWriter, r *http.Request) {

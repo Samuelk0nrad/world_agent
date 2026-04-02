@@ -26,6 +26,7 @@ func New(
 		config,
 		logger,
 	)
+
 	// middleware
 	return &AgentServer{
 		mux:    mux,
@@ -39,12 +40,14 @@ func (s *AgentServer) Start(ctx context.Context) error {
 		Addr:    net.JoinHostPort(s.config.Host, s.config.Port),
 		Handler: s.mux,
 	}
+
 	go func() {
 		s.logger.Printf("starting listening on %s:%s...\n", s.config.Host, s.config.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.logger.Printf("server error: %s\n", err)
 		}
 	}()
+
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {

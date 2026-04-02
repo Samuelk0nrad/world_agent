@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 )
 
@@ -37,11 +38,12 @@ func decode[T any](r *http.Request, data *T) (T, error) {
 	return v, nil
 }
 
-func handler(f func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc {
+func handler(f func(w http.ResponseWriter, r *http.Request) error, logger *log.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := f(w, r); err != nil {
 			status := http.StatusInternalServerError
 			msg := http.StatusText(status)
+
 			if e, ok := err.(*ErrWithStatus); ok {
 				status = e.status
 				msg = http.StatusText(status)
@@ -49,9 +51,13 @@ func handler(f func(w http.ResponseWriter, r *http.Request) error) http.HandlerF
 					msg = e.Error()
 				}
 			}
+
+			logger.Printf("error handling request: %s\n", err)
 			encode(w, r, status, ApiResponse[any]{
 				Message: msg,
 			})
 		}
+
+		logger.Printf("%s %s %d\n", r.Method, r.URL.Path, w.Header().Get("Status"))
 	}
 }
