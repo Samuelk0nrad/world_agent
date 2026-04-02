@@ -12,9 +12,9 @@ import (
 )
 
 type AgentServer struct {
-	mux    *http.ServeMux
-	config *config.Env
-	logger *log.Logger
+	handler *http.Handler
+	config  *config.Env
+	logger  *log.Logger
 }
 
 func New(
@@ -26,19 +26,20 @@ func New(
 		config,
 		logger,
 	)
-
 	// middleware
+	var handler http.Handler = mux
+	handler = endpointLogging(logger, handler)
 	return &AgentServer{
-		mux:    mux,
-		config: config,
-		logger: logger,
+		handler: &handler,
+		config:  config,
+		logger:  logger,
 	}
 }
 
 func (s *AgentServer) Start(ctx context.Context) error {
 	srv := &http.Server{
 		Addr:    net.JoinHostPort(s.config.Host, s.config.Port),
-		Handler: s.mux,
+		Handler: *s.handler,
 	}
 
 	go func() {

@@ -53,11 +53,11 @@ func handler(f func(w http.ResponseWriter, r *http.Request) error, logger *log.L
 			}
 
 			logger.Printf("error handling request: %s\n", err)
-			encode(w, r, status, ApiResponse[any]{
+			if err := encode(w, r, status, ApiResponse[any]{
 				Message: msg,
-			})
+			}); err != nil {
+				logger.Printf("error encoding error response: %s\n", err)
+			}
 		}
-
-		logger.Printf("%s %s %d\n", r.Method, r.URL.Path, w.Header().Get("Status"))
 	}
 }
