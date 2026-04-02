@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/spf13/viper"
@@ -13,7 +14,7 @@ type Env struct {
 	Port         string `mapstructure:"PORT"`
 }
 
-func NewEnv(filename string, override bool) *Env {
+func NewEnv(filename string, override bool) (*Env, error) {
 	env := Env{}
 
 	viper.SetConfigFile(filename)
@@ -25,7 +26,7 @@ func NewEnv(filename string, override bool) *Env {
 
 	err := viper.ReadInConfig()
 	if err != nil {
-		log.Fatal("Error reading environment file", err)
+		return nil, fmt.Errorf("error reading environment file: %w", err)
 	}
 
 	err = viper.Unmarshal(&env)
@@ -33,5 +34,5 @@ func NewEnv(filename string, override bool) *Env {
 		log.Fatal("Error loading environment file", err)
 	}
 
-	return &env
+	return &env, nil
 }
