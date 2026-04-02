@@ -44,7 +44,13 @@ func agentCall(logger *log.Logger, config *config.Env) http.HandlerFunc {
 		var tools []loop.Tool
 		tools = append(tools, loop.NewEchoTool())
 		// agent, err := loop.NewAgent(model, tools, "", sessionId)
-		agent, err := loop.NewAgentFromPromptFiles(model, tools, config.PromptPathSys, config.PromptPathTool, sessionId)
+		agent, err := loop.NewAgentFromPromptFiles(
+			model,
+			tools,
+			config.PromptPathSys,
+			config.PromptPathTool,
+			sessionId,
+		)
 		if err != nil {
 			return err
 		}
