@@ -5,14 +5,10 @@ import (
 	"net/http"
 )
 
-func healthz() http.Handler {
-	return http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			json.NewEncoder(w).Encode(map[string]any{
-				"status": "healthy",
-			})
-		},
-	)
+func healthz(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(map[string]any{
+		"status": "healthy",
+	})
 }
 
 func agentRequest(w http.ResponseWriter, r *http.Request) {

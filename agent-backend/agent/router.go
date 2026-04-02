@@ -10,5 +10,5 @@ func addRoutes(
 	mux *http.ServeMux,
 	config *config.Env,
 ) {
-	mux.Handle("/healthz", healthz())
+	mux.HandleFunc("/healthz", healthz)
 }
