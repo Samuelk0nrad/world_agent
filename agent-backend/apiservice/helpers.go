@@ -21,6 +21,13 @@ func (e *ErrWithStatus) Error() string {
 	return e.err.Error()
 }
 
+func NewErrWithStatus(status int, err error) *ErrWithStatus {
+	return &ErrWithStatus{
+		status: status,
+		err:    err,
+	}
+}
+
 func encode[T any](w http.ResponseWriter, r *http.Request, status int, v T) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -30,9 +37,9 @@ func encode[T any](w http.ResponseWriter, r *http.Request, status int, v T) erro
 	return nil
 }
 
-func decode[T any](r *http.Request, data *T) (T, error) {
+func decode[T any](r *http.Request) (T, error) {
 	var v T
-	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
 		return v, fmt.Errorf("decode json: %w", err)
 	}
 	return v, nil
