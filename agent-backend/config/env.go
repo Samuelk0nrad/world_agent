@@ -8,10 +8,11 @@ import (
 )
 
 type Env struct {
-	GeminiAPIKey string `mapstructure:"GEMINI_API_KEY"`
-	PromptPath   string `mapstructure:"PROMPT_PATH"`
-	Host         string `mapstructure:"HOST"`
-	Port         string `mapstructure:"PORT"`
+	GeminiAPIKey   string `mapstructure:"GEMINI_API_KEY"`
+	PromptPathSys  string `mapstructure:"PROMPT_PATH_SYS"`
+	PromptPathTool string `mapstructure:"PROMPT_PATH_TOOL"`
+	Host           string `mapstructure:"HOST"`
+	Port           string `mapstructure:"PORT"`
 }
 
 func NewEnv(filename string, override bool) (*Env, error) {
