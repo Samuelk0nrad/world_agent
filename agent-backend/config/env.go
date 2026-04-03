@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/spf13/viper"
 )
@@ -32,7 +31,7 @@ func NewEnv(filename string, override bool) (*Env, error) {
 
 	err = viper.Unmarshal(&env)
 	if err != nil {
-		log.Fatal("Error loading environment file", err)
+		return nil, fmt.Errorf("Error loading environment file", err)
 	}
 
 	return &env, nil
