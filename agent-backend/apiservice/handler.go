@@ -27,7 +27,7 @@ func agentCall(logger *log.Logger, config *config.Env) http.HandlerFunc {
 		Prompt    string `json:"prompt"`
 	}
 	type response struct {
-		Response memory.Message   `json:"response"`
+		Response string           `json:"response"`
 		Messages []memory.Message `json:"messages"`
 	}
 	return handler(func(w http.ResponseWriter, r *http.Request) error {
@@ -48,7 +48,10 @@ func agentCall(logger *log.Logger, config *config.Env) http.HandlerFunc {
 		if err != nil {
 			return err
 		}
-		agent.FollowUp(context.Background(), req.Prompt)
+		res, err := agent.FollowUp(context.Background(), req.Prompt)
+		if err != nil {
+			return err
+		}
 
 		messages, err := agent.MemorySystem.GetMessages(10)
 		if err != nil {
@@ -57,7 +60,7 @@ func agentCall(logger *log.Logger, config *config.Env) http.HandlerFunc {
 
 		encode(w, r, http.StatusOK, ApiResponse[response]{
 			Data: &response{
-				Response: messages[len(messages)-1],
+				Response: res,
 				Messages: messages,
 			},
 			Message: "agent call received",
