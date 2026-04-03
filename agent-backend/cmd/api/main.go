@@ -1,37 +1,36 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"agent-backend/internal/api/server"
-	"agent-backend/internal/config"
+	"agent-backend/apiservice"
+	"agent-backend/config"
 )
 
 func main() {
-	env := config.NewEnv(".env", true)
-
-	runtime := server.NewRouter(env)
-	defer func() {
-		if err := runtime.Close(); err != nil {
-			log.Printf("error closing runtime: %v", err)
-		}
-	}()
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigCh
-		if err := runtime.Close(); err != nil {
-			log.Printf("error during shutdown: %v", err)
-		}
-		os.Exit(0)
-	}()
-
-	err := runtime.Router.Run(":8080")
-	if err != nil {
-		log.Fatalf("error occurred running the api: %v", err)
+	if err := run(); err != nil {
+		fmt.Printf("error running the service: %s\n", err)
+		os.Exit(1)
 	}
+}
+
+func run() error {
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	config, err := config.NewEnv(".env", true)
+	if err != nil {
+		return err
+	}
+
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+	logger := log.New(os.Stdout, "agent-backend: ", log.LstdFlags|log.Lmicroseconds)
+
+	srv := apiservice.New(config, logger)
+	return srv.Start(ctx)
 }

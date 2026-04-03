@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"agent-backend/pkg/gai/ai"
+	"agent-backend/gai/ai"
 )
 
 func TestProviderModelValidation(t *testing.T) {
