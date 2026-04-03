@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 
 	"agent-backend/config"
 	gemini "agent-backend/gai/ai_gemini"
 	"agent-backend/gai/loop"
-	"agent-backend/gai/memory"
 )
 
 func healthz(logger *log.Logger) http.HandlerFunc {
@@ -23,19 +23,16 @@ func healthz(logger *log.Logger) http.HandlerFunc {
 
 func agentCall(logger *log.Logger, config *config.Env) http.HandlerFunc {
 	type request struct {
-		SessionId int    `json:"sessionId"`
-		Prompt    string `json:"prompt"`
+		Prompt string `json:"prompt"`
 	}
 	type response struct {
-		Response string           `json:"response"`
-		Messages []memory.Message `json:"messages"`
+		Response []loop.Iteration `json:"response"`
 	}
 	return handler(func(w http.ResponseWriter, r *http.Request) error {
 		req, err := decode[request](r)
 		if err != nil {
 			return NewErrWithStatus(http.StatusBadRequest, err)
 		}
-		sessionId := req.SessionId
 
 		provider := gemini.New(config.GeminiAPIKey)
 		model, err := provider.Model(gemini.Gemini2_5FlashLite)
@@ -46,31 +43,34 @@ func agentCall(logger *log.Logger, config *config.Env) http.HandlerFunc {
 		var tools []loop.Tool
 		tools = append(tools, loop.NewEchoTool())
 
-		agent, err := loop.NewAgentFromPromptFiles(
+		agent, err := loop.NewWithPromptFiles(
 			model,
 			tools,
 			config.PromptPathSys,
 			config.PromptPathTool,
-			sessionId,
 		)
 		if err != nil {
 			return err
 		}
 
-		res, err := agent.FollowUp(context.Background(), req.Prompt)
-		if err != nil {
-			return err
-		}
-
-		messages, err := agent.MemorySystem.GetMessages(10)
-		if err != nil {
+		if err = agent.Loop(
+			context.Background(),
+			req.Prompt,
+			func(iterations []loop.Iteration) string {
+				var builder strings.Builder
+				loop.BuildIterationsString(&builder, iterations)
+				return builder.String()
+			},
+			func(req loop.ToolRequest, res *loop.ToolResponse) error {
+				return nil
+			},
+		); err != nil {
 			return err
 		}
 
 		if err = encode(w, r, http.StatusOK, ApiResponse[response]{
 			Data: &response{
-				Response: res,
-				Messages: messages,
+				Response: agent.Iterations,
 			},
 			Message: "success",
 		}); err != nil {
