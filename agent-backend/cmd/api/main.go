@@ -14,7 +14,8 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Printf("error running the service: %s", err)
+		fmt.Printf("error running the service: %s\n", err)
+		os.Exit(1)
 	}
 }
 
