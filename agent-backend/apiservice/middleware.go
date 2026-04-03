@@ -28,7 +28,7 @@ func endpointLogging(logger *log.Logger, next http.Handler) http.Handler {
 		next.ServeHTTP(sw, r)
 
 		logger.Printf(
-			"%s %s %d %s form:%s",
+			"%s %s %d %s from:%s",
 			r.Method,
 			r.URL.Path,
 			sw.statusCode,

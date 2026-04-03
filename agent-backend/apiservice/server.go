@@ -42,10 +42,12 @@ func (s *AgentServer) Start(ctx context.Context) error {
 		Handler: *s.handler,
 	}
 
+	errCh := make(chan error, 1)
 	go func() {
 		s.logger.Printf("starting listening on %s:%s...\n", s.config.Host, s.config.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.logger.Printf("server error: %s\n", err)
+			errCh <- err
 		}
 	}()
 
@@ -53,7 +55,13 @@ func (s *AgentServer) Start(ctx context.Context) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		<-ctx.Done()
+
+		select {
+		case <-ctx.Done():
+		case err := <-errCh:
+			s.logger.Printf("server error: %s\n", err)
+			return
+		}
 
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
