@@ -5,7 +5,8 @@ name: Go
 
 on:
   push:
-  - main
+    branches:
+    - main
   pull_request:
 
 jobs:
