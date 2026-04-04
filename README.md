@@ -108,3 +108,6 @@ npm run dev
 
 Open `http://localhost:3000`, set **Backend URL** in the UI (default `http://localhost:8088`), then click **Start** or **Poll now**.
 The monitor polls backend logs from `GET /v1/logs/events?since=<n>&limit=<n>` (through the app route `GET /api/logs/events`).
+
+
+Copyright (C) 2026 Samuel Konrad
