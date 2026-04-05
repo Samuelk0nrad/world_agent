@@ -26,8 +26,8 @@ func New(
 		config,
 		logger,
 	)
-	// middleware
 	var handler http.Handler = mux
+	// middleware
 	handler = endpointLogging(logger, handler)
 	return &AgentServer{
 		handler: &handler,

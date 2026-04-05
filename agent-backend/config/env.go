@@ -31,7 +31,7 @@ func NewEnv(filename string, override bool) (*Env, error) {
 
 	err = viper.Unmarshal(&env)
 	if err != nil {
-		return nil, fmt.Errorf("Error loading environment file", err)
+		return nil, fmt.Errorf("error loading environment file: %w", err)
 	}
 
 	return &env, nil
