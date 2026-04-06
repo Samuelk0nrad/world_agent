@@ -1,12 +1,12 @@
 # The World Game
 
-## running this localy (dev)
+## running this locally (dev)
 
 1. clone the repo: `git clone git@github.com:Samuelk0nrad/world_game.git WorldGame`
 2. go into the repo: `cd WorldGame`
 3. clone the subrepos: `git submodule init && git submodule update`
 
-## New agent scaffolding (workstream 1)
+## New agent scaffolding
 
 - `mobile-app/`: React Native (Expo) chat-first shell with tabs: Assistant, Extensions, Settings
 - `agent-backend/`: Golang (Gin) backend skeleton with:
@@ -108,3 +108,6 @@ npm run dev
 
 Open `http://localhost:3000`, set **Backend URL** in the UI (default `http://localhost:8088`), then click **Start** or **Poll now**.
 The monitor polls backend logs from `GET /v1/logs/events?since=<n>&limit=<n>` (through the app route `GET /api/logs/events`).
+
+
+Copyright (C) 2026 Samuel Konrad

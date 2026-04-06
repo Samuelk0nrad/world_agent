@@ -1,9 +1,11 @@
-package memory
+package context
 
 import (
 	"strconv"
 	"strings"
 	"time"
+
+	"agent-backend/gai/loop"
 )
 
 type Role string
@@ -19,8 +21,30 @@ type Message struct {
 	ID        int
 	SessionID int
 	CreatedAt time.Time
-	Content   string
+	Content   Content
 	Role      Role
+}
+
+type Content struct {
+	Text       string
+	Iterations []loop.Iteration
+}
+
+func (c Content) String() string {
+	var builder strings.Builder
+	hasText := false
+	if c.Text != "" {
+		hasText = true
+		builder.WriteString(c.Text)
+	}
+
+	for i, iter := range c.Iterations {
+		if hasText || i > 0 {
+			builder.WriteString("\n")
+		}
+		builder.WriteString(iter.String())
+	}
+	return builder.String()
 }
 
 func IsValidRole(role Role) bool {
@@ -39,7 +63,7 @@ func RenderMessages(messages []Message, builder *strings.Builder) {
 		builder.WriteString(" key=")
 		builder.WriteString(strconv.Itoa(i))
 		builder.WriteString(">\n")
-		builder.WriteString(m.Content)
+		builder.WriteString(m.Content.String())
 		builder.WriteString("\n")
 		builder.WriteString("</")
 		builder.WriteString(string(m.Role))
