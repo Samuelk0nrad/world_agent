@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"sync"
 
 	"agent-backend/gai/context"
 )
@@ -11,16 +12,21 @@ type Session struct {
 }
 
 type InMemorySessionStore struct {
+	mu       sync.RWMutex
 	sessions map[int]*Session
 }
 
 func NewInMemorySessionStore() *InMemorySessionStore {
 	return &InMemorySessionStore{
 		sessions: make(map[int]*Session),
+		mu:       sync.RWMutex{},
 	}
 }
 
 func (s *InMemorySessionStore) GetSession(sessionID int) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	_, exists := s.sessions[sessionID]
 	if !exists {
 		return fmt.Errorf("%v with id: %d", context.ErrSessionNotFound, sessionID)
@@ -29,6 +35,9 @@ func (s *InMemorySessionStore) GetSession(sessionID int) error {
 }
 
 func (s *InMemorySessionStore) GetMessages(sessionID int, limit int, offset int) ([]context.Message, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
 	session, exists := s.sessions[sessionID]
 	if !exists {
 		return nil, fmt.Errorf("%v with id: %d", context.ErrSessionNotFound, sessionID)
