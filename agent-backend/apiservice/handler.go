@@ -47,6 +47,7 @@ func agentCall(logger *log.Logger, config *config.Env) http.HandlerFunc {
 			model,
 			tools,
 			req.Prompt,
+			"",
 		)
 		if err != nil {
 			return err
