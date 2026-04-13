@@ -9,12 +9,15 @@ import (
 	"time"
 
 	"agent-backend/config"
+	aicontext "agent-backend/gai/context"
+	"agent-backend/store"
 )
 
 type AgentServer struct {
-	handler *http.Handler
-	config  *config.Env
-	logger  *log.Logger
+	handler      *http.Handler
+	config       *config.Env
+	logger       *log.Logger
+	sessionStore aicontext.SessionStore
 }
 
 func New(
@@ -22,10 +25,14 @@ func New(
 	logger *log.Logger,
 ) *AgentServer {
 	mux := http.NewServeMux()
+
+	sessionStore := store.NewInMemorySessionStore()
 	addRoutes(mux,
 		config,
 		logger,
+		sessionStore,
 	)
+
 	var handler http.Handler = mux
 	// middleware
 	handler = endpointLogging(logger, handler)

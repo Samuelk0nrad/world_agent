@@ -9,6 +9,7 @@ import (
 
 	"agent-backend/config"
 	gemini "agent-backend/gai/ai_gemini"
+	aicontext "agent-backend/gai/context"
 	"agent-backend/gai/loop"
 )
 
@@ -21,9 +22,10 @@ func healthz(logger *log.Logger) http.HandlerFunc {
 	}, logger)
 }
 
-func agentCall(logger *log.Logger, config *config.Env) http.HandlerFunc {
+func agentCall(logger *log.Logger, sessionStore aicontext.SessionStore, config *config.Env) http.HandlerFunc {
 	type request struct {
-		Prompt string `json:"prompt"`
+		Prompt    string `json:"prompt"`
+		SessionId int    `json:"session_id"`
 	}
 	type response struct {
 		Response []loop.Iteration `json:"response"`
@@ -43,11 +45,13 @@ func agentCall(logger *log.Logger, config *config.Env) http.HandlerFunc {
 		var tools []loop.Tool
 		tools = append(tools, loop.NewEchoTool())
 
+		systemPrompt, err := aicontext.LoadPromptFromFile(config.PromptPath)
+
 		agent := loop.New(
 			model,
 			tools,
 			req.Prompt,
-			"",
+			systemPrompt,
 		)
 		if err != nil {
 			return err
