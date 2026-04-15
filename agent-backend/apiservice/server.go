@@ -27,10 +27,16 @@ func New(
 	mux := http.NewServeMux()
 
 	sessionStore := store.NewInMemorySessionStore()
-	addRoutes(mux,
+	providerRepo, err := RegisterProviders(*config)
+	if err != nil {
+		logger.Fatalf("failed to register AI providers: %s\n", err)
+	}
+	addRoutes(
+		mux,
 		config,
 		logger,
 		sessionStore,
+		providerRepo,
 	)
 
 	var handler http.Handler = mux

@@ -1,16 +1,23 @@
 package apiservice
 
 import (
-	"agent-backend/config"
-	"agent-backend/gai/loop"
-	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 
-	gemini "agent-backend/gai/ai_gemini"
+	"agent-backend/config"
+	"agent-backend/gai/ai"
+	"agent-backend/gai/loop"
+
 	aicontext "agent-backend/gai/context"
 )
+
+type AgentHandler struct {
+	logger       *log.Logger
+	sessionStore aicontext.SessionStore
+	config       *config.Env
+	providers    ai.ModelRepository
+}
 
 func healthz(logger *log.Logger) http.HandlerFunc {
 	return handler(func(w http.ResponseWriter, r *http.Request) error {
@@ -21,7 +28,7 @@ func healthz(logger *log.Logger) http.HandlerFunc {
 	}, logger)
 }
 
-func agentCall(logger *log.Logger, sessionStore aicontext.SessionStore, config *config.Env) http.HandlerFunc {
+func (h *AgentHandler) agentCall() http.HandlerFunc {
 	type request struct {
 		Prompt    string `json:"prompt"`
 		SessionId int    `json:"session_id"`
@@ -30,53 +37,35 @@ func agentCall(logger *log.Logger, sessionStore aicontext.SessionStore, config *
 		Response []loop.Iteration `json:"response"`
 	}
 	return handler(func(w http.ResponseWriter, r *http.Request) error {
+		ctx := r.Context()
+
 		req, err := decode[request](r)
 		if err != nil {
 			return NewErrWithStatus(http.StatusBadRequest, err)
 		}
 
-		provider := gemini.New(config.GeminiAPIKey)
-		model, err := provider.Model(gemini.Gemini2_5FlashLite)
+		sysPrompt, err := aicontext.LoadPromptFromFile(h.config.PromptPath + "/system.md")
 		if err != nil {
 			return NewErrWithStatus(http.StatusInternalServerError, err)
 		}
 
-		var tools []loop.Tool
-		tools = append(tools, loop.NewEchoTool())
-
-		systemPrompt, err := aicontext.LoadPromptFromFile(config.PromptPath + "system.md")
-		sessionManager := aicontext.NewSessionManager(sessionStore, req.SessionId)
+		model, err := h.providers.GetModel(h.config.Provider, h.config.Model)
+		if err != nil {
+			return NewErrWithStatus(http.StatusInternalServerError, err)
+		}
 
 		agent := loop.New(
 			model,
-			tools,
+			[]loop.Tool{}, // TODO: support tools
 			req.Prompt,
-			systemPrompt,
+			sysPrompt,
+			nil,
+			nil,
 		)
-		if err != nil {
-			return err
-		}
 
-		if err = agent.Loop(
-			context.Background(),
-			req.Prompt,
-			sessionManager.BuildContext,
-			func(req loop.ToolRequest, res *loop.ToolResponse) error {
-				return nil
-			},
-		); err != nil {
-			return err
+		if err := agent.Loop(ctx); err != nil {
+			return NewErrWithStatus(http.StatusInternalServerError, err)
 		}
-
-		if err = encode(w, r, http.StatusOK, ApiResponse[response]{
-			Data: &response{
-				Response: agent.Iterations,
-			},
-			Message: "success",
-		}); err != nil {
-			return nil
-		}
-
 		return nil
-	}, logger)
+	}, h.logger)
 }
