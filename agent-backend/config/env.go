@@ -10,10 +10,10 @@ type Env struct {
 	GeminiAPIKey  string `mapstructure:"GEMINI_API_KEY"`
 	MistralAPIKey string `mapstructure:"MISTRAL_API_KEY"`
 	PromptPath    string `mapstructure:"PROMPT_PATH"`
-	Host         string `mapstructure:"HOST"`
-	Port         string `mapstructure:"PORT"`
-	Provider     string `mapstructure:"PROVIDER"`
-	Model        string `mapstructure:"MODEL"`
+	Host          string `mapstructure:"HOST"`
+	Port          string `mapstructure:"PORT"`
+	Provider      string `mapstructure:"PROVIDER"`
+	Model         string `mapstructure:"MODEL"`
 }
 
 func NewEnv(filename string, override bool) (*Env, error) {
