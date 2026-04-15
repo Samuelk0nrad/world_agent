@@ -54,12 +54,14 @@ func (h *AgentHandler) agentCall() http.HandlerFunc {
 			return NewErrWithStatus(http.StatusInternalServerError, err)
 		}
 
+		sessionManager := aicontext.NewSessionManager(h.sessionStore, req.SessionId)
+
 		agent := loop.New(
 			model,
 			[]loop.Tool{}, // TODO: support tools
 			req.Prompt,
 			sysPrompt,
-			nil,
+			sessionManager,
 			nil,
 		)
 
