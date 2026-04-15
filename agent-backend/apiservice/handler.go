@@ -30,8 +30,9 @@ func healthz(logger *log.Logger) http.HandlerFunc {
 
 func (h *AgentHandler) agentCall() http.HandlerFunc {
 	type request struct {
-		Prompt    string `json:"prompt"`
-		SessionId int    `json:"session_id"`
+		Prompt     string `json:"prompt"`
+		SessionId  int    `json:"session_id"`
+		NewSession bool   `json:"new_session"`
 	}
 	type response struct {
 		Response []aicontext.Message `json:"response"`
@@ -54,7 +55,14 @@ func (h *AgentHandler) agentCall() http.HandlerFunc {
 			return NewErrWithStatus(http.StatusInternalServerError, err)
 		}
 
-		sessionManager := aicontext.NewSessionManager(h.sessionStore, req.SessionId)
+		sessionID := req.SessionId
+		if req.NewSession {
+			sessionID, err = h.sessionStore.CreateSession()
+			if err != nil {
+				return NewErrWithStatus(http.StatusInternalServerError, err)
+			}
+		}
+		sessionManager := aicontext.NewSessionManager(h.sessionStore, sessionID)
 
 		agent := loop.New(
 			model,

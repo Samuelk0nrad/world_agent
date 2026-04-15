@@ -53,3 +53,14 @@ func (s *InMemorySessionStore) GetMessages(sessionID int, limit int, offset int)
 
 	return messages[offset:end], nil
 }
+
+func (s *InMemorySessionStore) CreateSession() (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	newID := len(s.sessions) + 1
+	s.sessions[newID] = &Session{
+		messages: []context.Message{},
+	}
+	return newID, nil
+}
