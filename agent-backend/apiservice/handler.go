@@ -34,7 +34,7 @@ func (h *AgentHandler) agentCall() http.HandlerFunc {
 		SessionId int    `json:"session_id"`
 	}
 	type response struct {
-		Response []loop.Iteration `json:"response"`
+		Response []aicontext.Message `json:"response"`
 	}
 	return handler(func(w http.ResponseWriter, r *http.Request) error {
 		ctx := r.Context()
@@ -66,6 +66,13 @@ func (h *AgentHandler) agentCall() http.HandlerFunc {
 		if err := agent.Loop(ctx); err != nil {
 			return NewErrWithStatus(http.StatusInternalServerError, err)
 		}
+
+		message := agent.Messages()
+
+		json.NewEncoder(w).Encode(response{
+			Response: message,
+		})
+
 		return nil
 	}, h.logger)
 }
