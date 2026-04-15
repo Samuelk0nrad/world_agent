@@ -1,16 +1,15 @@
 package apiservice
 
 import (
+	"agent-backend/config"
+	"agent-backend/gai/loop"
 	"context"
 	"encoding/json"
 	"log"
 	"net/http"
-	"strings"
 
-	"agent-backend/config"
 	gemini "agent-backend/gai/ai_gemini"
 	aicontext "agent-backend/gai/context"
-	"agent-backend/gai/loop"
 )
 
 func healthz(logger *log.Logger) http.HandlerFunc {
@@ -45,7 +44,8 @@ func agentCall(logger *log.Logger, sessionStore aicontext.SessionStore, config *
 		var tools []loop.Tool
 		tools = append(tools, loop.NewEchoTool())
 
-		systemPrompt, err := aicontext.LoadPromptFromFile(config.PromptPath)
+		systemPrompt, err := aicontext.LoadPromptFromFile(config.PromptPath + "system.md")
+		sessionManager := aicontext.NewSessionManager(sessionStore, req.SessionId)
 
 		agent := loop.New(
 			model,
@@ -60,11 +60,7 @@ func agentCall(logger *log.Logger, sessionStore aicontext.SessionStore, config *
 		if err = agent.Loop(
 			context.Background(),
 			req.Prompt,
-			func(iterations []loop.Iteration) string {
-				var builder strings.Builder
-				loop.BuildIterationsString(&builder, iterations)
-				return builder.String()
-			},
+			sessionManager.BuildContext,
 			func(req loop.ToolRequest, res *loop.ToolResponse) error {
 				return nil
 			},
