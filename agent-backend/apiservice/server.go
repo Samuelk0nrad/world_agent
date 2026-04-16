@@ -27,7 +27,7 @@ func New(
 	mux := http.NewServeMux()
 
 	sessionStore := store.NewInMemorySessionStore()
-	providerRepo, err := RegisterProviders(*config)
+	providerRepo, err := RegisterProviders(*config, logger)
 	if err != nil {
 		logger.Fatalf("failed to register AI providers: %s\n", err)
 	}
