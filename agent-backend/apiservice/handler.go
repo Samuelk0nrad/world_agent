@@ -100,3 +100,33 @@ func (h *AgentHandler) agentCall() http.HandlerFunc {
 		return nil
 	}, h.logger)
 }
+
+func (h *AgentHandler) getSessionMessages() http.HandlerFunc {
+	type request struct {
+		SessionId int `json:"session_id"`
+		Limit     int `json:"limit"`
+		Offset    int `json:"offset"`
+	}
+	type response struct {
+		Messages []aicontext.Message `json:"messages"`
+	}
+	return handler(func(w http.ResponseWriter, r *http.Request) error {
+		req, err := decode[request](r)
+		if err != nil {
+			return NewErrWithStatus(http.StatusBadRequest, err)
+		}
+
+		messages, err := h.sessionStore.GetMessages(req.SessionId, req.Limit, req.Offset)
+		if err != nil {
+			if errors.Is(err, aicontext.ErrSessionNotFound) {
+				return NewErrWithStatus(http.StatusNotFound, err)
+			}
+			return NewErrWithStatus(http.StatusInternalServerError, err)
+		}
+
+		json.NewEncoder(w).Encode(response{
+			Messages: messages,
+		})
+		return nil
+	}, h.logger)
+}

@@ -24,4 +24,5 @@ func addRoutes(
 	}
 	mux.HandleFunc("GET /healthz", healthz(logger))
 	mux.HandleFunc("POST /agent/call", agentHandler.agentCall())
+	mux.HandleFunc("GET /agent/session", agentHandler.getSessionMessages())
 }
