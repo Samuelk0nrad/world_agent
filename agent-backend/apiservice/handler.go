@@ -1,13 +1,14 @@
 package apiservice
 
 import (
-	"agent-backend/config"
-	"agent-backend/gai/ai"
-	"agent-backend/gai/loop"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
+
+	"agent-backend/config"
+	"agent-backend/gai/ai"
+	"agent-backend/gai/loop"
 
 	aicontext "agent-backend/gai/context"
 )
@@ -92,9 +93,13 @@ func (h *AgentHandler) agentCall() http.HandlerFunc {
 			return NewErrWithStatus(http.StatusInternalServerError, err)
 		}
 
-		json.NewEncoder(w).Encode(response{
+		res := response{
 			Response: messages,
-		})
+		}
+
+		if err := encode(w, r, http.StatusOK, res); err != nil {
+			return NewErrWithStatus(http.StatusInternalServerError, err)
+		}
 
 		return nil
 	}, h.logger)
@@ -123,9 +128,13 @@ func (h *AgentHandler) getSessionMessages() http.HandlerFunc {
 			return NewErrWithStatus(http.StatusInternalServerError, err)
 		}
 
-		json.NewEncoder(w).Encode(response{
+		res := response{
 			Messages: messages,
-		})
+		}
+
+		if err := encode(w, r, http.StatusOK, res); err != nil {
+			return NewErrWithStatus(http.StatusInternalServerError, err)
+		}
 		return nil
 	}, h.logger)
 }
