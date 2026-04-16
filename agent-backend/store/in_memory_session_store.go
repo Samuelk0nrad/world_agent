@@ -3,12 +3,13 @@ package store
 import (
 	"fmt"
 	"sync"
+	"time"
 
-	"agent-backend/gai/context"
+	aicontext "agent-backend/gai/context"
 )
 
 type Session struct {
-	messages []context.Message
+	messages []aicontext.Message
 }
 
 type InMemorySessionStore struct {
@@ -29,23 +30,23 @@ func (s *InMemorySessionStore) GetSession(sessionID int) error {
 
 	_, exists := s.sessions[sessionID]
 	if !exists {
-		return fmt.Errorf("%v with id: %d", context.ErrSessionNotFound, sessionID)
+		return fmt.Errorf("%v with id: %d", aicontext.ErrSessionNotFound, sessionID)
 	}
 	return nil
 }
 
-func (s *InMemorySessionStore) GetMessages(sessionID int, limit int, offset int) ([]context.Message, error) {
+func (s *InMemorySessionStore) GetMessages(sessionID int, limit int, offset int) ([]aicontext.Message, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	session, exists := s.sessions[sessionID]
 	if !exists {
-		return nil, fmt.Errorf("%v with id: %d", context.ErrSessionNotFound, sessionID)
+		return nil, fmt.Errorf("%v with id: %d", aicontext.ErrSessionNotFound, sessionID)
 	}
 
 	messages := session.messages
 	if offset >= len(messages) {
-		return []context.Message{}, nil
+		return []aicontext.Message{}, nil
 	}
 
 	end := offset + limit
@@ -60,7 +61,48 @@ func (s *InMemorySessionStore) CreateSession() (int, error) {
 
 	newID := len(s.sessions) + 1
 	s.sessions[newID] = &Session{
-		messages: []context.Message{},
+		messages: []aicontext.Message{},
 	}
 	return newID, nil
+}
+
+func (s *InMemorySessionStore) AddMessage(sessionID int, message aicontext.Message) (aicontext.Message, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.addMessage(sessionID, message)
+}
+
+func (s *InMemorySessionStore) AddMessages(sessionID int, messages []aicontext.Message) ([]aicontext.Message, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var storeMessages []aicontext.Message
+
+	_, exists := s.sessions[sessionID]
+	if !exists {
+		return nil, fmt.Errorf("%v with id: %d", aicontext.ErrSessionNotFound, sessionID)
+	}
+
+	for _, m := range messages {
+		msg, err := s.addMessage(sessionID, m)
+		if err != nil {
+			return nil, err
+		}
+		storeMessages = append(storeMessages, msg)
+	}
+	return storeMessages, nil
+}
+
+func (s *InMemorySessionStore) addMessage(sessionID int, message aicontext.Message) (aicontext.Message, error) {
+	session, exists := s.sessions[sessionID]
+	if !exists {
+		return message, fmt.Errorf("%v with id: %d", aicontext.ErrSessionNotFound, sessionID)
+	}
+	message.ID = len(session.messages) + 1
+	if message.CreatedAt.IsZero() {
+		message.CreatedAt = time.Now()
+	}
+	message.SessionID = sessionID
+	session.messages = append(session.messages, message)
+	return message, nil
 }

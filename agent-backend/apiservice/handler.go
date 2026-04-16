@@ -2,6 +2,7 @@ package apiservice
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 
@@ -45,6 +46,14 @@ func (h *AgentHandler) agentCall() http.HandlerFunc {
 			return NewErrWithStatus(http.StatusBadRequest, err)
 		}
 
+		err = h.sessionStore.GetSession(req.SessionId)
+		if err != nil && !req.NewSession {
+			if errors.Is(err, aicontext.ErrSessionNotFound) {
+				return NewErrWithStatus(http.StatusInternalServerError, err)
+			}
+			return NewErrWithStatus(http.StatusBadRequest, err)
+		}
+
 		sysPrompt, err := aicontext.LoadPromptFromFile(h.config.PromptPath + "/system.md")
 		if err != nil {
 			return NewErrWithStatus(http.StatusInternalServerError, err)
@@ -77,10 +86,15 @@ func (h *AgentHandler) agentCall() http.HandlerFunc {
 			return NewErrWithStatus(http.StatusInternalServerError, err)
 		}
 
-		message := agent.Messages()
+		messages := agent.Messages()
+
+		messages, err = h.sessionStore.AddMessages(sessionID, messages)
+		if err != nil {
+			return NewErrWithStatus(http.StatusInternalServerError, err)
+		}
 
 		json.NewEncoder(w).Encode(response{
-			Response: message,
+			Response: messages,
 		})
 
 		return nil
