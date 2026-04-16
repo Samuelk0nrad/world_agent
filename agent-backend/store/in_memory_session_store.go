@@ -30,7 +30,7 @@ func (s *InMemorySessionStore) GetSession(sessionID int) error {
 
 	_, exists := s.sessions[sessionID]
 	if !exists {
-		return fmt.Errorf("%v with id: %d", aicontext.ErrSessionNotFound, sessionID)
+		return fmt.Errorf("%w with id: %d", aicontext.ErrSessionNotFound, sessionID)
 	}
 	return nil
 }
@@ -41,7 +41,7 @@ func (s *InMemorySessionStore) GetMessages(sessionID int, limit int, offset int)
 
 	session, exists := s.sessions[sessionID]
 	if !exists {
-		return nil, fmt.Errorf("%v with id: %d", aicontext.ErrSessionNotFound, sessionID)
+		return nil, fmt.Errorf("%w with id: %d", aicontext.ErrSessionNotFound, sessionID)
 	}
 
 	messages := session.messages
@@ -80,7 +80,7 @@ func (s *InMemorySessionStore) AddMessages(sessionID int, messages []aicontext.M
 
 	_, exists := s.sessions[sessionID]
 	if !exists {
-		return nil, fmt.Errorf("%v with id: %d", aicontext.ErrSessionNotFound, sessionID)
+		return nil, fmt.Errorf("%w with id: %d", aicontext.ErrSessionNotFound, sessionID)
 	}
 
 	for _, m := range messages {
@@ -96,7 +96,7 @@ func (s *InMemorySessionStore) AddMessages(sessionID int, messages []aicontext.M
 func (s *InMemorySessionStore) addMessage(sessionID int, message aicontext.Message) (aicontext.Message, error) {
 	session, exists := s.sessions[sessionID]
 	if !exists {
-		return message, fmt.Errorf("%v with id: %d", aicontext.ErrSessionNotFound, sessionID)
+		return message, fmt.Errorf("%w with id: %d", aicontext.ErrSessionNotFound, sessionID)
 	}
 	message.ID = len(session.messages) + 1
 	if message.CreatedAt.IsZero() {

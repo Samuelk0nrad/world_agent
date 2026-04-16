@@ -1,14 +1,13 @@
 package apiservice
 
 import (
+	"agent-backend/config"
+	"agent-backend/gai/ai"
+	"agent-backend/gai/loop"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
-
-	"agent-backend/config"
-	"agent-backend/gai/ai"
-	"agent-backend/gai/loop"
 
 	aicontext "agent-backend/gai/context"
 )
@@ -49,9 +48,9 @@ func (h *AgentHandler) agentCall() http.HandlerFunc {
 		err = h.sessionStore.GetSession(req.SessionId)
 		if err != nil && !req.NewSession {
 			if errors.Is(err, aicontext.ErrSessionNotFound) {
-				return NewErrWithStatus(http.StatusInternalServerError, err)
+				return NewErrWithStatus(http.StatusBadRequest, err)
 			}
-			return NewErrWithStatus(http.StatusBadRequest, err)
+			return NewErrWithStatus(http.StatusInternalServerError, err)
 		}
 
 		sysPrompt, err := aicontext.LoadPromptFromFile(h.config.PromptPath + "/system.md")
