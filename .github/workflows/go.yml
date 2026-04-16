@@ -6,8 +6,9 @@ name: Go
 on:
   push:
     branches:
-    - main
+    - "main"
   pull_request:
+    - "main"
 
 jobs:
 
