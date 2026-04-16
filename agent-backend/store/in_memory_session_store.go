@@ -49,10 +49,18 @@ func (s *InMemorySessionStore) GetMessages(sessionID int, limit int, offset int)
 		return []aicontext.Message{}, nil
 	}
 
-	end := offset + limit
-	end = min(end, len(messages))
+	// 0, 1, 2, 3, 4, 5, 6, 7, 8
+	// len: 9
+	// eg:
+	// 	offset: 0
+	// 	limit: 5
+	// 	start: 9 - 0 = 9
+	// 	end: 9 - 5 = 4
+	end := len(messages) - offset
+	start := end - limit
+	start = max(start, 0)
 
-	return messages[offset:end], nil
+	return messages[start:end], nil
 }
 
 func (s *InMemorySessionStore) CreateSession() (int, error) {
