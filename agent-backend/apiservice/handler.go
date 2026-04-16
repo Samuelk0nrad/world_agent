@@ -1,16 +1,24 @@
 package apiservice
 
 import (
-	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 
 	"agent-backend/config"
-	gemini "agent-backend/gai/ai_gemini"
+	"agent-backend/gai/ai"
 	"agent-backend/gai/loop"
-	"agent-backend/gai/memory"
+
+	aicontext "agent-backend/gai/context"
 )
+
+type AgentHandler struct {
+	logger       *log.Logger
+	sessionStore aicontext.SessionStore
+	config       *config.Env
+	providers    ai.ModelRepository
+}
 
 func healthz(logger *log.Logger) http.HandlerFunc {
 	return handler(func(w http.ResponseWriter, r *http.Request) error {
@@ -21,51 +29,112 @@ func healthz(logger *log.Logger) http.HandlerFunc {
 	}, logger)
 }
 
-func agentCall(logger *log.Logger, config *config.Env) http.HandlerFunc {
+func (h *AgentHandler) agentCall() http.HandlerFunc {
 	type request struct {
-		SessionId int    `json:"sessionId"`
-		Prompt    string `json:"prompt"`
+		Prompt     string `json:"prompt"`
+		SessionId  int    `json:"session_id"`
+		NewSession bool   `json:"new_session"`
 	}
 	type response struct {
-		Response string           `json:"response"`
-		Messages []memory.Message `json:"messages"`
+		Response []aicontext.Message `json:"response"`
+	}
+	return handler(func(w http.ResponseWriter, r *http.Request) error {
+		ctx := r.Context()
+
+		req, err := decode[request](r)
+		if err != nil {
+			return NewErrWithStatus(http.StatusBadRequest, err)
+		}
+
+		err = h.sessionStore.GetSession(req.SessionId)
+		if err != nil && !req.NewSession {
+			if errors.Is(err, aicontext.ErrSessionNotFound) {
+				return NewErrWithStatus(http.StatusBadRequest, err)
+			}
+			return NewErrWithStatus(http.StatusInternalServerError, err)
+		}
+
+		sysPrompt, err := aicontext.LoadPromptFromFile(h.config.PromptPath + "/system.md")
+		if err != nil {
+			return NewErrWithStatus(http.StatusInternalServerError, err)
+		}
+
+		model, err := h.providers.GetModel(h.config.Provider, h.config.Model)
+		if err != nil {
+			return NewErrWithStatus(http.StatusInternalServerError, err)
+		}
+
+		sessionID := req.SessionId
+		if req.NewSession {
+			sessionID, err = h.sessionStore.CreateSession()
+			if err != nil {
+				return NewErrWithStatus(http.StatusInternalServerError, err)
+			}
+		}
+		sessionManager := aicontext.NewSessionManager(h.sessionStore, sessionID)
+
+		agent := loop.New(
+			model,
+			[]loop.Tool{}, // TODO: support tools
+			req.Prompt,
+			sysPrompt,
+			sessionManager,
+			nil,
+		)
+
+		if err := agent.Loop(ctx); err != nil {
+			return NewErrWithStatus(http.StatusInternalServerError, err)
+		}
+
+		messages := agent.Messages()
+
+		messages, err = h.sessionStore.AddMessages(sessionID, messages)
+		if err != nil {
+			return NewErrWithStatus(http.StatusInternalServerError, err)
+		}
+
+		res := response{
+			Response: messages,
+		}
+
+		if err := encode(w, r, http.StatusOK, res); err != nil {
+			return NewErrWithStatus(http.StatusInternalServerError, err)
+		}
+
+		return nil
+	}, h.logger)
+}
+
+func (h *AgentHandler) getSessionMessages() http.HandlerFunc {
+	type request struct {
+		SessionId int `json:"session_id"`
+		Limit     int `json:"limit"`
+		Offset    int `json:"offset"`
+	}
+	type response struct {
+		Messages []aicontext.Message `json:"messages"`
 	}
 	return handler(func(w http.ResponseWriter, r *http.Request) error {
 		req, err := decode[request](r)
 		if err != nil {
 			return NewErrWithStatus(http.StatusBadRequest, err)
 		}
-		sessionId := req.SessionId
-		provider := gemini.New(config.GeminiAPIKey)
-		model, err := provider.Model(gemini.Gemini2_5Flash)
+
+		messages, err := h.sessionStore.GetMessages(req.SessionId, req.Limit, req.Offset)
 		if err != nil {
+			if errors.Is(err, aicontext.ErrSessionNotFound) {
+				return NewErrWithStatus(http.StatusNotFound, err)
+			}
 			return NewErrWithStatus(http.StatusInternalServerError, err)
 		}
-		var tools []loop.Tool
-		tools = append(tools, loop.NewEchoTool())
-		// agent, err := loop.NewAgent(model, tools, "", sessionId)
-		agent, err := loop.NewAgentFromPromptFiles(model, tools, config.PromptPathSys, config.PromptPathTool, sessionId)
-		if err != nil {
-			return err
-		}
-		res, err := agent.FollowUp(context.Background(), req.Prompt)
-		if err != nil {
-			return err
+
+		res := response{
+			Messages: messages,
 		}
 
-		messages, err := agent.MemorySystem.GetMessages(10)
-		if err != nil {
-			return err
+		if err := encode(w, r, http.StatusOK, res); err != nil {
+			return NewErrWithStatus(http.StatusInternalServerError, err)
 		}
-
-		encode(w, r, http.StatusOK, ApiResponse[response]{
-			Data: &response{
-				Response: res,
-				Messages: messages,
-			},
-			Message: "agent call received",
-		})
-
 		return nil
-	}, logger)
+	}, h.logger)
 }

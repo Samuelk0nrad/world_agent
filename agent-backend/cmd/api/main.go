@@ -31,6 +31,10 @@ func run() error {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
 	logger := log.New(os.Stdout, "agent-backend: ", log.LstdFlags|log.Lmicroseconds)
 
-	srv := apiservice.New(config, logger)
+	srv, err := apiservice.New(config, logger)
+	if err != nil {
+		return fmt.Errorf("failed to create server: %w", err)
+	}
+
 	return srv.Start(ctx)
 }

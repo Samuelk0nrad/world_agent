@@ -7,11 +7,13 @@ import (
 )
 
 type Env struct {
-	GeminiAPIKey   string `mapstructure:"GEMINI_API_KEY"`
-	PromptPathSys  string `mapstructure:"PROMPT_PATH_SYS"`
-	PromptPathTool string `mapstructure:"PROMPT_PATH_TOOL"`
-	Host           string `mapstructure:"HOST"`
-	Port           string `mapstructure:"PORT"`
+	GeminiAPIKey  string `mapstructure:"GEMINI_API_KEY"`
+	MistralAPIKey string `mapstructure:"MISTRAL_API_KEY"`
+	PromptPath    string `mapstructure:"PROMPT_PATH"`
+	Host          string `mapstructure:"HOST"`
+	Port          string `mapstructure:"PORT"`
+	Provider      string `mapstructure:"PROVIDER"`
+	Model         string `mapstructure:"MODEL"`
 }
 
 func NewEnv(filename string, override bool) (*Env, error) {
@@ -31,7 +33,7 @@ func NewEnv(filename string, override bool) (*Env, error) {
 
 	err = viper.Unmarshal(&env)
 	if err != nil {
-		return nil, fmt.Errorf("Error loading environment file", err)
+		return nil, fmt.Errorf("error loading environment file: %w", err)
 	}
 
 	return &env, nil

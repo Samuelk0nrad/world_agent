@@ -2,6 +2,7 @@ package apiservice
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -9,31 +10,44 @@ import (
 	"time"
 
 	"agent-backend/config"
+	aicontext "agent-backend/gai/context"
+	"agent-backend/store"
 )
 
 type AgentServer struct {
-	handler *http.Handler
-	config  *config.Env
-	logger  *log.Logger
+	handler      *http.Handler
+	config       *config.Env
+	logger       *log.Logger
+	sessionStore aicontext.SessionStore
 }
 
 func New(
 	config *config.Env,
 	logger *log.Logger,
-) *AgentServer {
+) (*AgentServer, error) {
 	mux := http.NewServeMux()
-	addRoutes(mux,
+
+	sessionStore := store.NewInMemorySessionStore()
+	providerRepo, err := RegisterProviders(*config, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register AI providers: %w", err)
+	}
+	addRoutes(
+		mux,
 		config,
 		logger,
+		sessionStore,
+		providerRepo,
 	)
-	// middleware
+
 	var handler http.Handler = mux
+	// middleware
 	handler = endpointLogging(logger, handler)
 	return &AgentServer{
 		handler: &handler,
 		config:  config,
 		logger:  logger,
-	}
+	}, nil
 }
 
 func (s *AgentServer) Start(ctx context.Context) error {
