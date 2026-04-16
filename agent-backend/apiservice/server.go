@@ -2,6 +2,7 @@ package apiservice
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -23,13 +24,13 @@ type AgentServer struct {
 func New(
 	config *config.Env,
 	logger *log.Logger,
-) *AgentServer {
+) (*AgentServer, error) {
 	mux := http.NewServeMux()
 
 	sessionStore := store.NewInMemorySessionStore()
 	providerRepo, err := RegisterProviders(*config, logger)
 	if err != nil {
-		logger.Fatalf("failed to register AI providers: %s\n", err)
+		return nil, fmt.Errorf("failed to register AI providers: %w", err)
 	}
 	addRoutes(
 		mux,
@@ -46,7 +47,7 @@ func New(
 		handler: &handler,
 		config:  config,
 		logger:  logger,
-	}
+	}, nil
 }
 
 func (s *AgentServer) Start(ctx context.Context) error {
