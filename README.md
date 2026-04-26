@@ -79,7 +79,7 @@ For building a log UI, query:
 ```sh
 cd agent-backend
 cp example.env .env
-docker compose up --build
+docker compose up -d --build 
 ```
 
 The backend is exposed on `http://localhost:8088`.
