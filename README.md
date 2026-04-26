@@ -9,7 +9,7 @@
 ## New agent scaffolding
 
 - `mobile-app/`: React Native (Expo) chat-first shell with tabs: Assistant, Extensions, Settings
-- `agent-backend/`: Golang (Gin) backend skeleton with:
+- `agent-backend/`: Go backend skeleton with:
   - `GET /healthz`
   - `GET /v1/extensions`
   - `PATCH /v1/extensions/:id`
